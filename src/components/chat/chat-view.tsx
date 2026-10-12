@@ -1,0 +1,65 @@
+"use client";
+
+import { useMemo } from "react";
+import {
+  Conversation,
+  ConversationContent,
+  ConversationScrollButton,
+} from "@/components/ai-elements/conversation";
+import { Spinner } from "@/components/ui/spinner";
+import { useChatStream } from "@/hooks/use-chat-stream";
+import { sendMessage, stopChat } from "@/lib/chat-api";
+import { chatMessages } from "@/lib/chat-stream";
+import { ChatComposer } from "./chat-composer";
+import { ChatMessageView } from "./chat-message";
+
+export function ChatView({ chatId }: { chatId: number }) {
+  const { state, connection, loaded } = useChatStream(chatId);
+  const messages = useMemo(() => chatMessages(state), [state]);
+
+  if (connection === "closed") {
+    return (
+      <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
+        This chat could not be loaded.
+      </div>
+    );
+  }
+
+  const status = [
+    state.queued > 0 && `${state.queued} queued`,
+    state.retry && `Retrying (attempt ${state.retry.attempt})`,
+    connection === "reconnecting" && "Reconnecting…",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Opening a chat jumps to its end; only new content scrolls smoothly. */}
+      <Conversation initial="instant">
+        <ConversationContent className="mx-auto w-full max-w-3xl">
+          {!loaded && (
+            <div className="flex justify-center py-8 text-muted-foreground">
+              <Spinner />
+            </div>
+          )}
+          {messages.map((message) => (
+            <ChatMessageView key={message.key} message={message} />
+          ))}
+          {state.failure && !state.running && (
+            <p className="text-sm text-destructive">{state.failure}</p>
+          )}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      <div className="mx-auto w-full max-w-3xl px-4 pb-4">
+        <ChatComposer
+          onSend={(text) => sendMessage(chatId, text)}
+          running={state.running}
+          onStop={() => stopChat(chatId)}
+          status={status}
+        />
+      </div>
+    </div>
+  );
+}

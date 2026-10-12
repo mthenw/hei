@@ -27,11 +27,18 @@ export const settingsSection: Section = {
   icon: SettingsIcon,
 };
 
-/** A path is active on itself and every path nested under it. */
-export function isPathActive(pathname: string, prefix: string): boolean {
+/** A path is active on itself and every path nested under it. An unknown pathname matches nothing. */
+export function isPathActive(
+  pathname: string | undefined,
+  prefix: string,
+): boolean {
+  if (pathname === undefined) return false;
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-export function isSectionActive(pathname: string, section: Section): boolean {
+export function isSectionActive(
+  pathname: string | undefined,
+  section: Section,
+): boolean {
   return isPathActive(pathname, section.match ?? section.href);
 }

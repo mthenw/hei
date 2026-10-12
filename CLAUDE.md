@@ -12,7 +12,8 @@ Single-user personal assistant: Next.js + [pi-durable](https://github.com/earend
 ## Runtime
 
 - **bun is the package manager; Node 24 is the runtime.** pi-durable needs `node:sqlite`, so scripts run the app with Node (`next dev`, `next start`), never `bun run` as the runtime.
-- **One Harness, one process.** pi-durable has no cross-process locking. The Harness lives on `globalThis` and is opened once from `instrumentation.ts`; reach it through the `src/agent/` accessor so hot reload reuses it.
+- **One Harness, one process.** pi-durable has no cross-process locking. The Agent (which owns the Harness) lives on `globalThis` and is opened once from `instrumentation.ts`; reach it through `getAgent()` from `@/agent`. Never point a second server (a `next start` smoke test, a script) at the same data directory — give it its own `HEI_DATA_DIR`.
+- **`src/agent/` is bundled more than once.** Next.js compiles it separately into instrumentation and into each route, and they share one Agent instance through `globalThis`. Module identity differs across that boundary: compare errors and objects by a `Symbol.for()` brand (see `ChatNotFound.is`), never `instanceof`. Restart the dev server after changing `src/agent/`, since the shared Agent keeps the code it was opened with.
 - `src/agent/` stays free of Next.js imports.
 
 ## pi-durable and pi-ai
@@ -31,7 +32,9 @@ Dark mode only. Visual language follows time.fyi: Geist / Geist Mono, hairline b
 
 Components from shadcn/ui (Radix base — AI Elements relies on `asChild`) and AI Elements; chat state comes from Hei's own SSE hook, not the AI SDK's `useChat`. `src/components/ui/` is vendored shadcn code, excluded from Biome: add and update it with `bunx --bun shadcn@latest add`, and compose or wrap it rather than editing it.
 
-Cache Components is on. Route-level redirects go in `next.config.ts` `redirects`, not a page that calls `redirect()`.
+Cache Components is on. Route-level redirects go in `next.config.ts` `redirects`, not a page that calls `redirect()`. On dynamic routes the pathname and params are request data: navigation that highlights the current path renders through `WithPathname`, and pages read `params` inside a `<Suspense>` boundary.
+
+The chat UI's only dependency on pi-durable's event shapes is `src/lib/chat-stream.ts`, which turns agent events into display messages. Keep it that way: when pi-durable changes its events, that file and its tests are the one place to update.
 
 ## Tests
 
