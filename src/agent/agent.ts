@@ -9,6 +9,7 @@ import {
   type Storage,
   watchEvents,
 } from "@earendil-works/pi-durable";
+import { HeiError, isHeiError } from "@/lib/errors";
 import { HeiExtension } from "./extension";
 
 /** A Chat is identified by the id of the pi-durable conversation behind it. */
@@ -20,21 +21,13 @@ export type Message = {
   requestId: string;
 };
 
-const chatNotFound = Symbol.for("hei.ChatNotFound");
-
-export class ChatNotFound extends Error {
-  readonly [chatNotFound] = true;
-
+export class ChatNotFound extends HeiError<"ChatNotFound"> {
   constructor(readonly chatId: ChatId) {
-    super(`Chat ${chatId} not found`);
+    super("ChatNotFound", `Chat ${chatId} not found`);
   }
 
-  /**
-   * Next.js bundles this module separately for instrumentation and for each route, while they share one Agent through
-   * globalThis, so `instanceof` fails across that boundary. Check the brand instead.
-   */
   static is(error: unknown): error is ChatNotFound {
-    return typeof error === "object" && error !== null && chatNotFound in error;
+    return isHeiError(error, "ChatNotFound");
   }
 }
 
@@ -67,14 +60,10 @@ export class Agent {
     return new Agent(harness, options.defaultModel);
   }
 
-  /** Create a chat and submit its first message in one call. */
-  async startChat(message: Message): Promise<ChatId> {
+  /** Create an empty chat: an ownerless conversation that runs on the default model. */
+  async createChat(): Promise<ChatId> {
     const conversation = await this.harness.createConversation(
       { ownership: { kind: "ownerless" }, agent: { model: this.defaultModel } },
-      context,
-    );
-    await conversation.submit(
-      { type: "input", content: message.content, requestId: message.requestId },
       context,
     );
     return conversation.id;

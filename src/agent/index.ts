@@ -1,7 +1,7 @@
-import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createModels } from "@earendil-works/pi-ai";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { dataDir } from "@/lib/data-dir";
 import { Agent } from "./agent";
 import { createDevModel, DEV_MODEL } from "./dev-model";
 
@@ -23,13 +23,8 @@ export function getAgent(): Promise<Agent> {
 }
 
 async function openAgent(): Promise<Agent> {
-  // The data directory is runtime state, not app code: keep the build from tracing it into the server output.
-  const dataDir = path.resolve(
-    /*turbopackIgnore: true*/ process.env.HEI_DATA_DIR ?? "data",
-  );
-  await mkdir(dataDir, { recursive: true });
   const storage = await openNodeSqliteStorage(
-    path.join(dataDir, "agent.sqlite"),
+    path.join(await dataDir(), "agent.sqlite"),
   );
 
   const models = createModels();

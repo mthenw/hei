@@ -24,9 +24,25 @@ export async function stopChat(chatId: number) {
   await post(`/api/chats/${chatId}/stop`);
 }
 
-async function post(url: string, body?: unknown): Promise<Response> {
+export async function renameChat(chatId: number, title: string) {
+  await request("PATCH", `/api/chats/${chatId}`, { title });
+}
+
+export async function deleteChat(chatId: number) {
+  await request("DELETE", `/api/chats/${chatId}`);
+}
+
+function post(url: string, body?: unknown): Promise<Response> {
+  return request("POST", url, body);
+}
+
+async function request(
+  method: string,
+  url: string,
+  body?: unknown,
+): Promise<Response> {
   const response = await fetch(url, {
-    method: "POST",
+    method,
     headers:
       body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),

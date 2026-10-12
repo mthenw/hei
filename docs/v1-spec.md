@@ -44,8 +44,10 @@ Decisions agreed in the grilling session of 2026-10-12. Architecture-shaping cho
 ### Sidebar
 - Chats grouped by date: Today, Yesterday, Last 7 days, Older.
 - **New chat** button.
-- Automatic title after the first exchange; rename; delete.
-- Delete is permanent: removes the chat row and its pi-durable conversation.
+- Titles: a provisional title from the first message (its first line, cut at a word boundary) appears at once; a model-written title replaces it after the first exchange (step 4) unless the user renamed the chat.
+- Rename and delete from a menu on each chat. Delete asks for confirmation.
+- Delete removes the chat from Hei and stops its work. pi-durable cannot delete a conversation, so the transcript stays in `agent.sqlite`, unreachable from Hei.
+- The list is live: every open sidebar updates when a chat is started, renamed, deleted or used, and a chat deleted elsewhere closes in every tab showing it.
 
 ### Profile page
 - **About me** — free text added to every chat's context.
@@ -100,7 +102,7 @@ See [ADR 0003](./adr/0003-own-web-tools.md).
 - `@earendil-works/*` packages pinned to exact versions.
 
 ### App database (initial)
-- `chats` — id, pi-durable conversation id, title, model (provider + modelId), created/updated timestamps.
+- `chats` — id (the pi-durable conversation id), title, whether the user set the title, the request id of the starting message (makes starting a chat idempotent), created and last-activity timestamps. The chat's model lives in pi-durable's `pi.agent` document, not here.
 - `profile` — single row: about me, timezone, assistant instructions.
 - `credentials` — pi-ai credential store backing (ChatGPT OAuth tokens), encrypted with `HEI_SECRET`.
 - `provider_status` — paused-until per provider, last error.

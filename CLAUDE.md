@@ -16,6 +16,10 @@ Single-user personal assistant: Next.js + [pi-durable](https://github.com/earend
 - **`src/agent/` is bundled more than once.** Next.js compiles it separately into instrumentation and into each route, and they share one Agent instance through `globalThis`. Module identity differs across that boundary: compare errors and objects by a `Symbol.for()` brand (see `ChatNotFound.is`), never `instanceof`. Restart the dev server after changing `src/agent/`, since the shared Agent keeps the code it was opened with.
 - `src/agent/` stays free of Next.js imports.
 
+## App database
+
+`app.sqlite` holds Hei's own data through Drizzle (see [ADR 0002](docs/adr/0002-separate-app-database.md)). To change the schema, edit `src/db/schema.ts`, run `bun run db:generate --name <change>`, and commit the new files in `drizzle/`; migrations apply when the server starts. Product operations on chats go through `Chats` (`getChats()` from `@/chats`), which keeps the row and the pi-durable conversation in step and notifies the live chat list.
+
 ## pi-durable and pi-ai
 
 - **Pinned exact versions.** The API changes without notice between releases. Before using any `@earendil-works/*` API, read the installed package's README and `.d.ts` files in `node_modules` — the installed version is the source of truth, not memory or the GitHub `main` branch.

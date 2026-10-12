@@ -5,8 +5,8 @@ export async function POST(
   _request: Request,
   { params }: RouteContext<"/api/chats/[id]/stop">,
 ) {
-  return withChat(params, async (agent, chatId) => {
-    await agent.stop(chatId);
+  return withChat(params, async (chats, chatId) => {
+    await chats.stop(chatId);
     return new Response(null, { status: 204 });
   });
 }

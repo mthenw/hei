@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -11,11 +12,13 @@ import { useChatStream } from "@/hooks/use-chat-stream";
 import { sendMessage, stopChat } from "@/lib/chat-api";
 import { chatMessages } from "@/lib/chat-stream";
 import { ChatComposer } from "./chat-composer";
+import { useChatList } from "./chat-list";
 import { ChatMessageView } from "./chat-message";
 
 export function ChatView({ chatId }: { chatId: number }) {
   const { state, connection, loaded } = useChatStream(chatId);
   const messages = useMemo(() => chatMessages(state), [state]);
+  useChatTitle(chatId);
 
   if (connection === "closed") {
     return (
@@ -62,4 +65,25 @@ export function ChatView({ chatId }: { chatId: number }) {
       </div>
     </div>
   );
+}
+
+/**
+ * Show the chat's title in the browser tab, and leave the chat once it is deleted, from this device or another.
+ */
+function useChatTitle(chatId: number) {
+  const router = useRouter();
+  const { chats } = useChatList();
+  const title = chats.find((chat) => chat.id === chatId)?.title;
+  // A chat that was just started may reach this page before the list does, so only a chat that was listed and then
+  // disappeared counts as deleted.
+  const seen = useRef(false);
+
+  useEffect(() => {
+    if (title !== undefined) {
+      seen.current = true;
+      document.title = `${title} · Hei`;
+    } else if (seen.current) {
+      router.replace("/chat");
+    }
+  }, [title, router]);
 }

@@ -47,6 +47,12 @@ const message = (content: string) => ({
   requestId: `test-${++counter}`,
 });
 
+async function startChat(agent: Agent, content: string): Promise<ChatId> {
+  const chatId = await agent.createChat();
+  await agent.send(chatId, message(content));
+  return chatId;
+}
+
 /** Follow a chat until Hei has answered every message and gone idle. */
 async function settle(
   agent: Agent,
@@ -86,7 +92,7 @@ const text = (message: ChatMessage | undefined) =>
 describe("Agent", () => {
   it("answers a new chat with reasoning and streamed text", async () => {
     const agent = await openAgent();
-    const chatId = await agent.startChat(message("Hello Hei"));
+    const chatId = await startChat(agent, "Hello Hei");
 
     const state = await settle(agent, chatId);
     const [user, reply] = chatMessages(state);
@@ -111,7 +117,7 @@ describe("Agent", () => {
 
   it("builds the same messages from live events as from a late snapshot", async () => {
     const agent = await openAgent({ tokensPerSecond: 400 });
-    const chatId = await agent.startChat(message("Stream this"));
+    const chatId = await startChat(agent, "Stream this");
     let sawPartial = false;
 
     const live = await settle(agent, chatId, (_events, state) => {
@@ -125,7 +131,7 @@ describe("Agent", () => {
 
   it("queues a message sent while busy and answers it next", async () => {
     const agent = await openAgent({ tokensPerSecond: 400 });
-    const chatId = await agent.startChat(message("First"));
+    const chatId = await startChat(agent, "First");
     await agent.send(chatId, message("Second"));
     let maxQueued = 0;
 
@@ -146,7 +152,7 @@ describe("Agent", () => {
 
   it("stops a run on request without reporting a failure", async () => {
     const agent = await openAgent({ tokensPerSecond: 40 });
-    const chatId = await agent.startChat(message("Stop me"));
+    const chatId = await startChat(agent, "Stop me");
 
     const stream = await agent.watch(chatId);
     await new Promise<void>((resolve) => {
@@ -172,7 +178,7 @@ describe("Agent", () => {
         storage: await openNodeSqliteStorage(file),
         tokensPerSecond: 40,
       });
-      const chatId = await first.startChat(message("Survive a restart"));
+      const chatId = await startChat(first, "Survive a restart");
       const stream = await first.watch(chatId);
       await new Promise<void>((resolve) => {
         stream.start(async (events) => {
