@@ -19,7 +19,7 @@ Decisions agreed in the grilling session of 2026-10-12. Architecture-shaping cho
 ## Users and environment
 
 - One user. No accounts table, no login in v1.
-- Runs locally during development (`bun run dev`); `bun run dev:lan` binds to `0.0.0.0` so a phone on the same network can reach it. Anyone on the LAN can use it in that mode — acceptable for development.
+- Runs locally during development (`bun run dev`); `bun run dev:lan` starts the dev server on the Mac's LAN IP so a phone on the same network can reach it (Next.js only serves dev assets to the hostname it was started with). Anyone on the LAN can use it in that mode — acceptable for development.
 - Later target: Synology DS923+ (x86, 4 GB) in Docker. Not a v1 concern beyond keeping the footprint small.
 
 ## Features

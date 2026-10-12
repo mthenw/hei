@@ -7,6 +7,8 @@ Single-user personal assistant: Next.js + [pi-durable](https://github.com/earend
 - [docs/adr/](docs/adr/) — why the architecture looks the way it does. Read the relevant ADR before changing process layout, storage, web tools or model access.
 - [docs/parked.md](docs/parked.md) — calendar, todos, hand-off and later work. Read when a task touches them.
 
+@AGENTS.md
+
 ## Runtime
 
 - **bun is the package manager; Node 24 is the runtime.** pi-durable needs `node:sqlite`, so scripts run the app with Node (`next dev`, `next start`), never `bun run` as the runtime.
@@ -25,7 +27,11 @@ Claude is reached only through `ANTHROPIC_API_KEY`; ChatGPT only through Sign in
 
 ## UI
 
-Dark mode only. Visual language follows time.fyi: Geist / Geist Mono, hairline borders, coral accent. Components from shadcn/ui and AI Elements; chat state comes from Hei's own SSE hook, not the AI SDK's `useChat`.
+Dark mode only. Visual language follows time.fyi: Geist / Geist Mono, hairline borders, coral accent. Theme tokens live on `:root` in `src/app/globals.css`; `<html>` carries the `dark` class so component `dark:` variants apply.
+
+Components from shadcn/ui (Radix base — AI Elements relies on `asChild`) and AI Elements; chat state comes from Hei's own SSE hook, not the AI SDK's `useChat`. `src/components/ui/` is vendored shadcn code, excluded from Biome: add and update it with `bunx --bun shadcn@latest add`, and compose or wrap it rather than editing it.
+
+Cache Components is on. Route-level redirects go in `next.config.ts` `redirects`, not a page that calls `redirect()`.
 
 ## Tests
 
