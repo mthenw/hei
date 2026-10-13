@@ -24,6 +24,7 @@ import {
 } from "@/components/ai-elements/tool";
 import type { AssistantPart, ChatMessage, ToolPart } from "@/lib/chat-stream";
 import { citations } from "@/lib/citations";
+import { isPlacesTool, PlacesToolView } from "./places-tool";
 import { CitationLink, CitationsProvider, SourceChips } from "./sources";
 import { isWebTool, WebToolView } from "./web-tool";
 
@@ -172,11 +173,9 @@ function AssistantPartView({
         </Reasoning>
       );
     case "tool":
-      return isWebTool(part) ? (
-        <WebToolView part={part} />
-      ) : (
-        <ToolCallView part={part} />
-      );
+      if (isWebTool(part)) return <WebToolView part={part} />;
+      if (isPlacesTool(part)) return <PlacesToolView part={part} />;
+      return <ToolCallView part={part} />;
   }
 }
 

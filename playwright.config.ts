@@ -46,6 +46,8 @@ export default defineConfig({
       HEI_DEV_MODEL: "1",
       ANTHROPIC_API_KEY: "",
       JINA_API_KEY: "",
+      GOOGLE_MAPS_API_KEY: "",
+      GOOGLE_MAPS_BROWSER_KEY: "",
       HEI_SECRET: "",
     },
   },

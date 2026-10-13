@@ -16,6 +16,7 @@ Fill in `.env`:
 - `HEI_SECRET` — encrypts the stored ChatGPT sign-in, e.g. `openssl rand -base64 32`.
 - `ANTHROPIC_API_KEY` — Claude, through a pay-as-you-go API key.
 - `JINA_API_KEY` — web search and reading pages.
+- `GOOGLE_MAPS_API_KEY` and `GOOGLE_MAPS_BROWSER_KEY` — finding places, and showing them on a map (see `.env.example` for how to restrict each).
 
 All are optional: without any, Hei offers only its scripted dev model.
 

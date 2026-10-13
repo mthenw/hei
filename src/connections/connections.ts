@@ -86,6 +86,11 @@ export class Connections {
       keys: [
         this.key("ANTHROPIC_API_KEY", "Claude (Anthropic API key)"),
         this.key("JINA_API_KEY", "Web search and reading pages (Jina)"),
+        this.key("GOOGLE_MAPS_API_KEY", "Finding places (Google Places)"),
+        this.key(
+          "GOOGLE_MAPS_BROWSER_KEY",
+          "Maps and place cards (Google, browser key)",
+        ),
         {
           name: "HEI_SECRET",
           label: "Encryption secret for sign-ins",

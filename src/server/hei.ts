@@ -10,6 +10,8 @@ import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite
 import { Agent } from "@/agent/agent";
 import { createDevModel } from "@/agent/dev-model";
 import { ModelCatalog } from "@/agent/model-catalog";
+import { GooglePlaces } from "@/agent/places/google-places";
+import { placesExtension } from "@/agent/places/tools";
 import { ProviderPauses } from "@/agent/provider-pauses";
 import { Jina } from "@/agent/web/jina";
 import { webExtension } from "@/agent/web/tools";
@@ -19,6 +21,7 @@ import { DatabaseCredentialStore } from "@/connections/credential-store";
 import { openAppDatabase } from "@/db/database";
 import { installationId } from "@/db/settings";
 import { claimDataDir, dataDir } from "@/lib/data-dir";
+import type { MapsConfig } from "@/lib/maps-config";
 import { SecretBox } from "@/lib/secret-box";
 import { Profile } from "@/profile/profile";
 
@@ -28,6 +31,7 @@ export type Hei = {
   chats: Chats;
   connections: Connections;
   profile: Profile;
+  maps: MapsConfig;
 };
 
 // pi-durable allows one owner per storage and has no cross-process locking, so the process builds Hei exactly once.
@@ -69,13 +73,20 @@ async function openHei(): Promise<Hei> {
       process.env.HEI_DEV_MODEL === "1",
   });
 
-  // Web access needs a Jina key; without one, chats are offered no web tools rather than tools that fail.
-  const jinaKey = process.env.JINA_API_KEY?.trim();
+  // Tools that need a key are offered only with one, rather than as tools that fail: web access needs a Jina key,
+  // finding places a Google Maps key.
+  const jinaKey = envValue("JINA_API_KEY");
+  const placesKey = envValue("GOOGLE_MAPS_API_KEY");
   const agent = await Agent.open({
     storage: await openNodeSqliteStorage(path.join(dir, "agent.sqlite")),
     models,
     catalog,
-    extensions: jinaKey ? [webExtension(new Jina({ apiKey: jinaKey }))] : [],
+    extensions: [
+      ...(jinaKey ? [webExtension(new Jina({ apiKey: jinaKey }))] : []),
+      ...(placesKey
+        ? [placesExtension(new GooglePlaces({ apiKey: placesKey }))]
+        : []),
+    ],
     persona: profile,
   });
   return {
@@ -88,7 +99,17 @@ async function openHei(): Promise<Hei> {
       installationId: await installationId(db),
       secretConfigured: box !== undefined,
     }),
+    maps: {
+      browserKey: envValue("GOOGLE_MAPS_BROWSER_KEY") ?? null,
+      // Google's test map ID works for advanced markers; a map ID of your own can restyle the map.
+      mapId: envValue("GOOGLE_MAPS_MAP_ID") ?? "DEMO_MAP_ID",
+    },
   };
+}
+
+function envValue(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value === "" ? undefined : value;
 }
 
 function secretBox(secret: string | undefined): SecretBox | undefined {

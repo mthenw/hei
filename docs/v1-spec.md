@@ -90,6 +90,13 @@ See [ADR 0003](./adr/0003-own-web-tools.md).
 - **In the chat**: each search shows as one line ("Searched “…” · 5 results", expandable to the results with site icons); each read as "Read <page title>". While a tool works it shows a spinner instead of "Thinking…".
 - **Citations**: the model cites with markdown links to the exact pages its tools returned. Links to those pages render as numbers in order of first citation, and the cited pages appear as numbered chips (site icon + domain) under the reply. Links to other pages stay ordinary links.
 
+### Places
+Added after v1; see [ADR 0005](./adr/0005-places-with-google-ui-kit.md).
+- `find_places` — Google Places API (New) Text Search on the server: up to five places with address, type, rating, price and open-now status for the model. Needs `GOOGLE_MAPS_API_KEY`; without it chats are offered no place search. `replay: "safe"`.
+- The transcript keeps only place IDs: the one piece of Places content Google allows to be stored indefinitely.
+- **In the chat**: "Found 5 places for “…”", then a dark Google map and, per place, Google's compact place card (photo, rating, type, price, open now, address) with an "Open in Google Maps" link. Each card loads its place from Google and puts a numbered coral pin on the map. The browser loads Google's script only when a chat shows places, with `GOOGLE_MAPS_BROWSER_KEY`; without it, places show as numbered links.
+- The model is told not to repeat addresses, ratings or links: it says which places it suggests and why.
+
 ### Layout and look
 - Icon rail on the left (Chat / Calendar / Todos), each section with its own sidebar. Calendar and Todos are placeholders in v1.
 - Phone: bottom tab bar replaces the rail; the chat list becomes a drawer.
@@ -116,7 +123,7 @@ See [ADR 0003](./adr/0003-own-web-tools.md).
 - `settings` — install-scoped values, including the stable SIWC device id.
 
 ### Environment
-`ANTHROPIC_API_KEY`, `JINA_API_KEY` (web search and reading pages), `HEI_SECRET`, `HEI_DATA_DIR` (default `./data`).
+`ANTHROPIC_API_KEY`, `JINA_API_KEY` (web search and reading pages), `GOOGLE_MAPS_API_KEY` (place search, server), `GOOGLE_MAPS_BROWSER_KEY` (map and place cards, browser), `GOOGLE_MAPS_MAP_ID` (optional), `HEI_SECRET`, `HEI_DATA_DIR` (default `./data`).
 
 ## Definition of done
 

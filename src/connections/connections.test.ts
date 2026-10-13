@@ -157,6 +157,8 @@ describe("Connections", () => {
     expect(keys.map((key) => [key.name, key.configured])).toEqual([
       ["ANTHROPIC_API_KEY", true],
       ["JINA_API_KEY", false],
+      ["GOOGLE_MAPS_API_KEY", false],
+      ["GOOGLE_MAPS_BROWSER_KEY", false],
       ["HEI_SECRET", true],
     ]);
     expect(JSON.stringify(keys)).not.toContain("sk-test");

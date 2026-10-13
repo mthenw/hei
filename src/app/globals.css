@@ -111,3 +111,20 @@
     @apply font-sans;
   }
 }
+
+/* Google's place cards (Places UI Kit) in Hei's dark theme. */
+.hei-place-card gmp-place-details-compact {
+  color-scheme: dark;
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  --gmp-mat-font-family: var(--font-geist-sans);
+  --gmp-mat-color-surface: var(--card);
+  --gmp-mat-color-on-surface: var(--foreground);
+  --gmp-mat-color-on-surface-variant: var(--muted-foreground);
+  --gmp-mat-color-outline-decorative: var(--border);
+  --gmp-mat-color-primary: var(--primary);
+  --gmp-mat-color-secondary-container: var(--muted);
+  --gmp-mat-color-neutral-container: var(--muted);
+  --gmp-thumbnail-border-radius: var(--radius-md);
+}

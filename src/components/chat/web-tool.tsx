@@ -111,7 +111,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
   );
 }
 
-function StatusIcon({
+export function StatusIcon({
   working,
   failed,
   icon,
@@ -133,7 +133,7 @@ function StatusIcon({
   );
 }
 
-function ToolError({ part }: { part: ToolPart }) {
+export function ToolError({ part }: { part: ToolPart }) {
   const message =
     part.status === "interrupted"
       ? "Interrupted before it finished."

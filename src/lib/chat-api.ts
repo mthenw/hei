@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import type { ModelChoice } from "@/agent/model-catalog";
 import type { ConnectionStatus } from "@/connections/connections";
 import type { ProfileChange, ProfileData } from "@/profile/profile";
+import type { MapsConfig } from "./maps-config";
 
 // Request ids make retries safe: the server admits a message with a given id once. nanoid rather than
 // crypto.randomUUID(), which browsers expose only on HTTPS or localhost (not on the LAN dev address).
@@ -75,6 +76,10 @@ export async function updateProfile(
     await request("PATCH", "/api/profile", change)
   ).json();
   return profile;
+}
+
+export async function getMapsConfig(): Promise<MapsConfig> {
+  return (await request("GET", "/api/maps")).json();
 }
 
 export async function getConnections(): Promise<ConnectionStatus> {
