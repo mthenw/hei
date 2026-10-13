@@ -137,7 +137,7 @@ function EditorForm({ todo, onClose }: { todo: Todo; onClose: () => void }) {
       </FieldGroup>
       <AgentPanel todo={todo} />
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <DialogFooter className="sm:justify-between">
+      <DialogFooter className="flex-row items-center justify-between">
         {confirmingDelete ? (
           <Button
             type="button"
