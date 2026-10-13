@@ -75,8 +75,14 @@ function lastUserText(messages: readonly TranscriptMessage[]): string {
   if (last === undefined) return "";
   if (typeof last.content === "string") return last.content;
   if (!Array.isArray(last.content)) return "";
-  return last.content
-    .filter((part) => part?.type === "text")
-    .map((part) => part.text)
-    .join("\n");
+  return (
+    last.content
+      // Hei stamps each message with its send time for the model; the dev model quotes what the user wrote.
+      .filter(
+        (part) =>
+          part?.type === "text" && !/^<sent>.*<\/sent>$/.test(part.text),
+      )
+      .map((part) => part.text)
+      .join("\n")
+  );
 }

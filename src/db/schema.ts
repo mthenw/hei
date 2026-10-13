@@ -41,3 +41,15 @@ export const providerPauses = sqliteTable("provider_pauses", {
   until: integer("until", { mode: "timestamp_ms" }).notNull(),
   reason: text("reason").notNull(),
 });
+
+/** What the user tells Hei about themselves and how it should behave. A single row, id 1. */
+export const profile = sqliteTable("profile", {
+  id: integer("id").primaryKey(),
+  about: text("about").notNull().default(""),
+  timeZone: text("time_zone").notNull().default("Europe/Warsaw"),
+  /** A language to always reply in; null replies in the language of each message. */
+  replyLanguage: text("reply_language"),
+  /** The user's own assistant instructions; null uses Hei's default. */
+  instructions: text("instructions"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});

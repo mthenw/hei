@@ -29,6 +29,13 @@
       "when": 1791881237777,
       "tag": "0003_title_written",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791883630647,
+      "tag": "0004_profile",
+      "breakpoints": true
     }
   ]
 }

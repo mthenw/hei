@@ -20,12 +20,14 @@ import { openAppDatabase } from "@/db/database";
 import { installationId } from "@/db/settings";
 import { claimDataDir, dataDir } from "@/lib/data-dir";
 import { SecretBox } from "@/lib/secret-box";
+import { Profile } from "@/profile/profile";
 
 /** Everything the server runs on, built once per process. */
 export type Hei = {
   agent: Agent;
   chats: Chats;
   connections: Connections;
+  profile: Profile;
 };
 
 // pi-durable allows one owner per storage and has no cross-process locking, so the process builds Hei exactly once.
@@ -58,6 +60,7 @@ async function openHei(): Promise<Hei> {
   models.setProvider(anthropicProvider());
   models.setProvider(createDevModel({ tokensPerSecond: 30 }).provider);
   const pauses = await ProviderPauses.open(db);
+  const profile = await Profile.open(db);
   const catalog = new ModelCatalog({
     models,
     pauses,
@@ -73,9 +76,11 @@ async function openHei(): Promise<Hei> {
     models,
     catalog,
     extensions: jinaKey ? [webExtension(new Jina({ apiKey: jinaKey }))] : [],
+    persona: profile,
   });
   return {
     agent,
+    profile,
     chats: new Chats(agent, db, { pauses }),
     connections: new Connections({
       models,

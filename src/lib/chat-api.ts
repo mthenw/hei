@@ -2,6 +2,7 @@ import type { ModelRef } from "@earendil-works/pi-durable";
 import { nanoid } from "nanoid";
 import type { ModelChoice } from "@/agent/model-catalog";
 import type { ConnectionStatus } from "@/connections/connections";
+import type { ProfileChange, ProfileData } from "@/profile/profile";
 
 // Request ids make retries safe: the server admits a message with a given id once. nanoid rather than
 // crypto.randomUUID(), which browsers expose only on HTTPS or localhost (not on the LAN dev address).
@@ -50,6 +51,24 @@ export type AvailableModels = {
 
 export async function getModels(): Promise<AvailableModels> {
   return (await request("GET", "/api/models")).json();
+}
+
+export type ProfileResponse = {
+  profile: ProfileData;
+  defaultInstructions: string;
+};
+
+export async function getProfile(): Promise<ProfileResponse> {
+  return (await request("GET", "/api/profile")).json();
+}
+
+export async function updateProfile(
+  change: ProfileChange,
+): Promise<ProfileData> {
+  const { profile } = await (
+    await request("PATCH", "/api/profile", change)
+  ).json();
+  return profile;
 }
 
 export async function getConnections(): Promise<ConnectionStatus> {

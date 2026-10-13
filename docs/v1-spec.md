@@ -50,10 +50,11 @@ Decisions agreed in the grilling session of 2026-10-12. Architecture-shaping cho
 - The list is live: every open sidebar updates when a chat is started, renamed, deleted or used, and a chat deleted elsewhere closes in every tab showing it.
 
 ### Profile page
-- **About me** — free text added to every chat's context.
-- **Timezone** — default `Europe/Warsaw`. Today's date in this zone is part of the system prompt (in place since step 6, with the zone fixed); step 7 makes the zone editable and adds the time of day without breaking prompt caching.
-- **Language** — Hei replies in the language of the user's message.
-- **Assistant instructions** — editable persona prompt, separate from About me. Default: brief and direct, answer first, no filler, ask before any action with side effects.
+Stored as one row in `app.sqlite` and read on every request, so a change applies from the next message in every chat. Hei's own prompt sections come from it (`heiExtension` in `src/agent/extension.ts`).
+- **About you** — free text, added to the system prompt when not empty.
+- **Time zone** — default `Europe/Warsaw`, any IANA zone, with a button to use the device's. Today's date in this zone is in the system prompt (it changes once a day). Each user message is stamped with its own send time (`<sent>13 Oct 2026, 11:42</sent>`) for the model only, in a `beforeRequest` hook: the stamp depends on the message alone, so cached context stays valid, and the stored chat is unchanged.
+- **Reply language** — "Same as my message" (default) or a fixed language.
+- **Assistant instructions** — editable persona prompt, separate from About you. Shows the default (answer first and briefly, ask before anything that changes something outside the chat) with a "Reset to default"; leaving the default stores nothing, so improvements to it reach the user.
 
 ### Connections page
 - **Connect ChatGPT** — runs Sign in with ChatGPT (pi-ai `openai` provider, SIWC) on the server. It opens the auth URL in a new tab; pi-ai's callback server on `127.0.0.1:1455` finishes the sign-in when the browser runs on the same machine as Hei, and otherwise the user pastes the address of the page that failed to load. Requires `HEI_SECRET`; the page explains how to set it. One sign-in at a time; cancelling frees the port.

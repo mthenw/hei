@@ -15,7 +15,7 @@ import {
 import { HeiError, isHeiError } from "@/lib/errors";
 import type { FailoverNote } from "@/lib/failover-note";
 import { FAILOVER_ENTRY } from "@/lib/failover-note";
-import { HeiExtension } from "./extension";
+import { heiExtension, type PersonaSource } from "./extension";
 import type { Catalog, ModelChoice } from "./model-catalog";
 
 /** A Chat is identified by the id of the pi-durable conversation behind it. */
@@ -75,6 +75,8 @@ export type AgentOptions = {
   catalog: Catalog;
   /** Extensions beside Hei's own, such as web access. Every chat uses all of them. */
   extensions?: Extension[];
+  /** The user's Profile, read on every request; defaults to an empty one. */
+  persona?: PersonaSource;
 };
 
 // Every Hei call runs to completion on its own; cancellation is per conversation, through stop().
@@ -91,7 +93,7 @@ export class Agent {
   /** Open the Harness and continue any run the previous process left unfinished. */
   static async open(options: AgentOptions): Promise<Agent> {
     const registry = createRegistry();
-    registry.install(HeiExtension);
+    registry.install(heiExtension(options.persona));
     for (const extension of options.extensions ?? [])
       registry.install(extension);
     const harness = await Harness.open(

@@ -2,6 +2,7 @@ import { ChatNotFound, ModelUnavailable } from "@/agent";
 import { InvalidTitle } from "@/chats";
 import { SignInError } from "@/connections/connections";
 import { CredentialsUnavailable } from "@/connections/credential-store";
+import { InvalidProfile } from "@/profile/profile";
 
 /** Run a route handler, answering Hei's known errors with a status and their message. */
 export async function respond(
@@ -20,6 +21,7 @@ function statusOf(error: unknown): number | undefined {
   if (ChatNotFound.is(error)) return 404;
   if (
     InvalidTitle.is(error) ||
+    InvalidProfile.is(error) ||
     ModelUnavailable.is(error) ||
     SignInError.is(error)
   )
