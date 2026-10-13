@@ -5,14 +5,17 @@ import {
   AssistantEntry,
   type ConversationId,
   createRegistry,
+  type EntryId,
   Harness,
   type ModelRef,
   type Storage,
   watchEvents,
 } from "@earendil-works/pi-durable";
 import { HeiError, isHeiError } from "@/lib/errors";
+import type { FailoverNote } from "@/lib/failover-note";
+import { FAILOVER_ENTRY } from "@/lib/failover-note";
 import { HeiExtension } from "./extension";
-import type { ModelCatalog, ModelChoice } from "./model-catalog";
+import type { Catalog, ModelChoice } from "./model-catalog";
 
 /** A Chat is identified by the id of the pi-durable conversation behind it. */
 export type ChatId = number;
@@ -23,10 +26,23 @@ export type Message = {
   requestId: string;
 };
 
+/** How a message's run ended. */
+export type Settled =
+  | { status: "done"; answer: string | undefined }
+  | {
+      status: "unanswered";
+      /** pi-durable's reason, e.g. "model_error" or "aborted". */
+      reason: string;
+      /** The error text, for a model error. */
+      detail: string | undefined;
+      /** The user's message in the transcript, if it was placed. */
+      entry: number | undefined;
+    };
+
 /** A message Hei admitted. */
 export type Sent = {
-  /** The text of Hei's answer once the run finishes, or nothing if it went unanswered. */
-  answer(): Promise<string | undefined>;
+  /** Resolves when the run that answers the message ends. */
+  settled(): Promise<Settled>;
 };
 
 export class ChatNotFound extends HeiError<"ChatNotFound"> {
@@ -55,7 +71,7 @@ export class ModelUnavailable extends HeiError<"ModelUnavailable"> {
 export type AgentOptions = {
   storage: Storage;
   models: Models;
-  catalog: ModelCatalog;
+  catalog: Catalog;
 };
 
 // Every Hei call runs to completion on its own; cancellation is per conversation, through stop().
@@ -66,7 +82,7 @@ export class Agent {
   private constructor(
     private readonly harness: Harness,
     private readonly models: Models,
-    readonly catalog: ModelCatalog,
+    readonly catalog: Catalog,
   ) {}
 
   /** Open the Harness and continue any run the previous process left unfinished. */
@@ -101,6 +117,12 @@ export class Agent {
     return conversation.id;
   }
 
+  /** The model a chat runs on now. */
+  async chatModel(chatId: ChatId): Promise<ModelRef | undefined> {
+    const conversation = await this.conversation(chatId);
+    return (await conversation.agent(context)).model;
+  }
+
   /** Switch the model a chat runs on, from its next request. */
   async setModel(chatId: ChatId, model: ModelRef): Promise<void> {
     const conversation = await this.conversation(chatId);
@@ -116,17 +138,57 @@ export class Agent {
       context,
     );
     return {
-      answer: async () => {
-        const settled = await submission.wait(context);
-        if (settled.status !== "done" || settled.type !== "input")
-          return undefined;
-        const entry = await conversation.commit(
-          (tx) => tx.entry(AssistantEntry, settled.answer),
-          context,
-        );
-        return textOf(entry?.model?.[0]);
+      settled: async () => {
+        const record = await submission.wait(context);
+        if (record.type !== "input")
+          return {
+            status: "unanswered",
+            reason: "not_input",
+            detail: undefined,
+            entry: undefined,
+          };
+        if (record.status === "done") {
+          const answer = await conversation.commit(
+            (tx) => tx.entry(AssistantEntry, record.answer),
+            context,
+          );
+          return { status: "done", answer: textOf(answer?.model?.[0]) };
+        }
+        return {
+          status: "unanswered",
+          reason: record.reason ?? "unknown",
+          detail: typeof record.detail === "string" ? record.detail : undefined,
+          entry: record.entry,
+        };
       },
     };
+  }
+
+  /**
+   * Record a failover in the chat's transcript. `omit` hides an earlier entry, the message about to be sent again, from
+   * the model's context, so it reads the message once.
+   */
+  async writeFailover(
+    chatId: ChatId,
+    note: FailoverNote,
+    omit?: number,
+  ): Promise<void> {
+    const conversation = await this.conversation(chatId);
+    await conversation.submit(
+      {
+        type: "write",
+        entry: {
+          kind: FAILOVER_ENTRY,
+          data: note,
+          ...(omit === undefined
+            ? {}
+            : {
+                edits: [{ target: omit as EntryId, action: "omit" as const }],
+              }),
+        },
+      },
+      context,
+    );
   }
 
   /** Stop the current run and withdraw queued messages. Resolves once the chat is idle. */

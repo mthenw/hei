@@ -30,3 +30,10 @@ export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/** Providers Hei skips for a while after hitting a limit, so it doesn't keep asking an exhausted plan. */
+export const providerPauses = sqliteTable("provider_pauses", {
+  provider: text("provider").primaryKey(),
+  until: integer("until", { mode: "timestamp_ms" }).notNull(),
+  reason: text("reason").notNull(),
+});

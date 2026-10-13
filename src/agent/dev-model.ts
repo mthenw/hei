@@ -8,6 +8,9 @@ import {
 
 export const DEV_MODEL = { provider: "hei-dev", modelId: "echo" } as const;
 
+/** Sending exactly this to the dev model makes it fail the way a used-up ChatGPT plan does, to try failover by hand. */
+export const SIMULATE_LIMIT = "/limit";
+
 /**
  * A scripted stand-in model: it streams a short reply that quotes the last user message. It exercises the whole chat
  * pipeline (thinking, streaming text, resume after restart) without a real provider.
@@ -24,11 +27,20 @@ export function createDevModel(options: { tokensPerSecond?: number } = {}) {
   // start in the same tick.
   const reply: FauxResponseFactory = (context) => {
     faux.appendResponses([reply]);
-    return devReply(lastUserText(context.messages));
+    const text = lastUserText(context.messages);
+    return text.trim() === SIMULATE_LIMIT ? simulatedLimit() : devReply(text);
   };
   faux.setResponses(Array.from({ length: 4 }, () => reply));
 
   return faux;
+}
+
+function simulatedLimit() {
+  return fauxAssistantMessage([], {
+    stopReason: "error",
+    errorMessage:
+      '429 {"error":{"code":"subscription_sharing_usage_limit_exceeded","message":"Simulated by the dev model"}}',
+  });
 }
 
 function devReply(userText: string) {

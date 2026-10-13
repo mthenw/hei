@@ -11,7 +11,7 @@ pi-ai can log in with a Claude Pro/Max/Team subscription, but only by presenting
 
 ## Consequences
 
-- Failover is Hei's job: pi-durable has no cross-provider fallback. Hei matches limit errors on an `unanswered` run, calls `conversation.configure()` with the other model and resubmits. pi-ai rewrites cross-provider history (thinking → text, tool-call ids normalised), at the cost of the prompt cache.
+- Failover is Hei's job: pi-durable has no cross-provider fallback, and it does not retry plan or credit limits, so the run ends before a model switch could reach a retry. Hei matches limit errors on the `unanswered` run, calls `conversation.configure()` with the other model, writes a `hei.failover` entry whose context edit omits the failed message, and sends the message again. pi-ai rewrites cross-provider history (thinking → text, tool-call ids normalised), at the cost of the prompt cache.
 - Sign in with ChatGPT needs a stable per-install device id and returns only to `127.0.0.1:1455`, so the Connections page also accepts a pasted redirect URL.
 - A publicly hosted Hei would fall outside OpenAI's personal-project allowance.
 - pi-ai will use a Claude subscription if it finds one, so Hei closes both ways in: its credential store refuses to store a sign-in for any provider except `openai`, and the auth context it gives pi-ai hides `ANTHROPIC_OAUTH_TOKEN`.

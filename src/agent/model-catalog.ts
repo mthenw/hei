@@ -35,8 +35,21 @@ const SIDE_JOB_ORDER: ModelRef[] = [
 
 const ACCOUNT_MODELS_TTL_MS = 10 * 60 * 1000;
 
+/** What Hei needs from a model catalog; the Agent and Chats depend on this rather than the class. */
+export type Catalog = Pick<
+  ModelCatalog,
+  | "available"
+  | "isAvailable"
+  | "defaultModel"
+  | "sideJobModel"
+  | "backupFor"
+  | "invalidate"
+>;
+
 export type ModelCatalogOptions = {
   models: Models;
+  /** Providers to skip for now, after a limit. */
+  pauses?: { isPaused(provider: string): boolean };
   /** Offer the scripted development model, for working without any provider. */
   includeDevModel: boolean;
   /** Ask OpenAI which model ids this account may use. */
@@ -82,13 +95,16 @@ export class ModelCatalog {
     return (await this.available()).some((choice) => sameModel(choice, model));
   }
 
-  /** The model a new chat starts on. */
+  /** The model a new chat starts on: the first available one whose provider isn't paused. */
   async defaultModel(): Promise<ModelRef> {
     const available = await this.available();
+    const offered = (model: ModelRef) =>
+      available.some((choice) => sameModel(choice, model));
     return (
-      DEFAULT_ORDER.find((model) =>
-        available.some((choice) => sameModel(choice, model)),
+      DEFAULT_ORDER.find(
+        (model) => offered(model) && !this.paused(model.provider),
       ) ??
+      DEFAULT_ORDER.find(offered) ??
       available[0] ??
       DEV_MODEL
     );
@@ -97,8 +113,25 @@ export class ModelCatalog {
   /** The cheap model for small jobs, or nothing when only the dev model is configured. */
   async sideJobModel(): Promise<ModelRef | undefined> {
     const available = await this.available();
-    return SIDE_JOB_ORDER.find((model) =>
-      available.some((choice) => sameModel(choice, model)),
+    return SIDE_JOB_ORDER.find(
+      (model) =>
+        !this.paused(model.provider) &&
+        available.some((choice) => sameModel(choice, model)),
+    );
+  }
+
+  /**
+   * Where a chat goes when `model`'s provider hits a limit: the first model, in default order, of another account that
+   * is available and not paused. Never the dev model.
+   */
+  async backupFor(model: ModelRef): Promise<ModelRef | undefined> {
+    const available = await this.available();
+    return DEFAULT_ORDER.find(
+      (candidate) =>
+        candidate.provider !== model.provider &&
+        candidate.provider !== DEV_MODEL.provider &&
+        !this.paused(candidate.provider) &&
+        available.some((choice) => sameModel(choice, candidate)),
     );
   }
 
@@ -131,6 +164,10 @@ export class ModelCatalog {
       console.warn("Could not read the ChatGPT account's models:", error);
       return undefined;
     }
+  }
+
+  private paused(provider: string): boolean {
+    return this.options.pauses?.isPaused(provider) ?? false;
   }
 
   private async configured(providerId: string): Promise<boolean> {

@@ -1,15 +1,11 @@
 import type { AgentEventStream, ModelRef } from "@earendil-works/pi-durable";
 import { and, desc, eq } from "drizzle-orm";
-import {
-  type Agent,
-  type ChatId,
-  ChatNotFound,
-  type Message,
-  type Sent,
-} from "@/agent";
+import { type Agent, type ChatId, ChatNotFound, type Message } from "@/agent";
+import { ProviderPauses } from "@/agent/provider-pauses";
 import type { AppDatabase } from "@/db/database";
 import { type ChatRow, chats } from "@/db/schema";
 import { HeiError, isHeiError } from "@/lib/errors";
+import { Failover } from "./failover";
 import {
   cleanTitle,
   TITLE_INSTRUCTIONS,
@@ -35,6 +31,8 @@ export type WriteTitle = (
 export type ChatsOptions = {
   now?: () => number;
   writeTitle?: WriteTitle;
+  /** Providers paused after a limit; shared with the model catalog. */
+  pauses?: ProviderPauses;
 };
 
 export class InvalidTitle extends HeiError<"InvalidTitle"> {
@@ -54,9 +52,12 @@ export class InvalidTitle extends HeiError<"InvalidTitle"> {
 export class Chats {
   private readonly listeners = new Set<() => void>();
 
-  private readonly titling = new Map<ChatId, Promise<void>>();
+  /** Work still running for messages sent here: failovers and automatic titles. */
+  private readonly pending = new Map<ChatId, Set<Promise<unknown>>>();
   private readonly now: () => number;
   private readonly writeTitle: WriteTitle;
+  private readonly pauses: ProviderPauses;
+  private readonly failover: Failover;
 
   constructor(
     private readonly agent: Agent,
@@ -64,6 +65,8 @@ export class Chats {
     options: ChatsOptions = {},
   ) {
     this.now = options.now ?? Date.now;
+    this.pauses = options.pauses ?? ProviderPauses.inMemory(this.now);
+    this.failover = new Failover(agent, this.pauses);
     this.writeTitle =
       options.writeTitle ??
       (async (firstMessage, answer) => {
@@ -96,26 +99,32 @@ export class Chats {
       createdAt: now,
       updatedAt: now,
     });
-    const sent = await this.agent.send(id, message);
     this.changed();
-    this.titling.set(id, this.retitle(id, message.content, sent));
+    const { answer } = await this.submit(id, message);
+    this.track(
+      id,
+      answer.then((text) => this.retitle(id, message.content, text)),
+    );
     return id;
   }
 
-  /** Resolves once the automatic title for a chat started here has been written or given up on. */
-  async titled(chatId: ChatId): Promise<void> {
-    await this.titling.get(chatId);
+  /** Resolves once Hei is done with the messages sent through here: failovers and automatic titles included. */
+  async settled(chatId: ChatId): Promise<void> {
+    while ((this.pending.get(chatId)?.size ?? 0) > 0)
+      await Promise.allSettled([...(this.pending.get(chatId) ?? [])]);
   }
 
-  /** Switch the model a chat runs on, from its next request. */
+  /** Switch the model a chat runs on, from its next request. Choosing a paused provider by hand ends its pause. */
   async setModel(chatId: ChatId, model: ModelRef): Promise<void> {
     await this.row(chatId);
     await this.agent.setModel(chatId, model);
+    if (this.pauses.isPaused(model.provider))
+      await this.pauses.resume(model.provider);
   }
 
   async send(chatId: ChatId, message: Message): Promise<void> {
     await this.row(chatId);
-    await this.agent.send(chatId, message);
+    this.track(chatId, (await this.submit(chatId, message)).answer);
     await this.db
       .update(chats)
       .set({ updatedAt: new Date(this.now()) })
@@ -173,9 +182,42 @@ export class Chats {
     return () => this.listeners.delete(listener);
   }
 
-  private async retitle(chatId: ChatId, firstMessage: string, sent: Sent) {
+  /**
+   * Send a message, first moving the chat off a paused provider. Resolves as soon as the message is admitted; `answer`
+   * then follows the reply to its end, through any switch to another account. (Wrapped in an object: an async function
+   * returning the promise itself would wait for it.)
+   */
+  private async submit(
+    chatId: ChatId,
+    message: Message,
+  ): Promise<{ answer: Promise<string | undefined> }> {
+    await this.failover.beforeSend(chatId);
+    const sent = await this.agent.send(chatId, message);
+    const answer = this.failover
+      .deliver(chatId, message, sent)
+      .catch((error: unknown) => {
+        console.warn(`Could not follow chat ${chatId}'s reply:`, error);
+        return undefined;
+      });
+    return { answer };
+  }
+
+  private track(chatId: ChatId, work: Promise<unknown>) {
+    const pending = this.pending.get(chatId) ?? new Set();
+    this.pending.set(chatId, pending);
+    pending.add(work);
+    void work.finally(() => {
+      pending.delete(work);
+      if (pending.size === 0) this.pending.delete(chatId);
+    });
+  }
+
+  private async retitle(
+    chatId: ChatId,
+    firstMessage: string,
+    answer: string | undefined,
+  ) {
     try {
-      const answer = await sent.answer();
       if (answer === undefined) return;
       const title = await this.writeTitle(firstMessage, answer);
       if (title === undefined) return;
@@ -187,8 +229,6 @@ export class Chats {
     } catch (error) {
       // The provisional title stays; a failed title is not worth failing anything else for.
       console.warn(`Could not title chat ${chatId}:`, error);
-    } finally {
-      this.titling.delete(chatId);
     }
   }
 

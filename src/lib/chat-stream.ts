@@ -11,6 +11,7 @@ import type {
   ModelRef,
   SnapshotEvent,
 } from "@earendil-works/pi-durable";
+import { FAILOVER_ENTRY, type FailoverNote } from "./failover-note";
 
 /**
  * Client-side state of one Chat, rebuilt from pi-durable's agent events: a snapshot on (re)connect, then one batch of
@@ -256,6 +257,8 @@ export type ChatMessage =
       waiting: boolean;
       /** This reply comes from a different model than the reply before it. */
       modelChanged: boolean;
+      /** Hei switched accounts for this reply because a limit stopped the previous model. */
+      failover?: { reason: string };
       error?: string;
       stopped?: boolean;
     };
@@ -270,6 +273,9 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
   const messages: ChatMessage[] = [];
   const marks: ResponseMarks = new WeakMap();
   let reply: AssistantChatMessage | undefined;
+  // A failover's reason, for the next reply; and the message it sent again, whose second copy isn't shown.
+  let switched: { reason: string } | undefined;
+  let resent: string | undefined;
 
   const currentReply = (key: string) => {
     if (reply === undefined) {
@@ -280,20 +286,45 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
         streaming: false,
         waiting: false,
         modelChanged: false,
+        failover: switched,
       };
+      switched = undefined;
       messages.push(reply);
     }
     return reply;
   };
 
   for (const entry of state.entries) {
+    if (entry.kind === FAILOVER_ENTRY) {
+      const note = entry.data as FailoverNote;
+      if (note.to === undefined) {
+        // Nowhere to switch: explain on the reply the limit stopped.
+        if (reply !== undefined)
+          reply.error = [note.reason, note.hint].filter(Boolean).join(". ");
+        continue;
+      }
+      if (note.resubmitted !== undefined) {
+        // The failed attempt gives way to the reply on the other model.
+        if (reply !== undefined && messages.at(-1) === reply) messages.pop();
+        reply = undefined;
+        resent = note.resubmitted;
+      }
+      switched = { reason: note.reason };
+      continue;
+    }
     const message = entry.model?.[0];
     if (message === undefined) continue;
     if (message.role === "user" && entry.kind === "pi.user") {
+      const text = userText(message);
+      if (resent !== undefined && text === resent) {
+        resent = undefined;
+        reply = undefined;
+        continue;
+      }
       messages.push({
         role: "user",
         key: `e${entry.id}`,
-        text: userText(message),
+        text,
       });
       reply = undefined;
     } else if (message.role === "assistant") {

@@ -31,6 +31,10 @@ export function ChatView({ chatId }: { chatId: number }) {
     );
   }
 
+  const last = messages.at(-1);
+  const lastReplyFailed =
+    last?.role === "assistant" && last.error !== undefined;
+
   const status = [
     state.queued > 0 && `${state.queued} queued`,
     state.retry && `Retrying (attempt ${state.retry.attempt})`,
@@ -55,14 +59,15 @@ export function ChatView({ chatId }: { chatId: number }) {
               message={message}
               switchedTo={
                 message.role === "assistant" &&
-                message.modelChanged &&
+                (message.modelChanged || message.failover) &&
                 message.model
                   ? nameOf(message.model)
                   : undefined
               }
             />
           ))}
-          {state.failure && !state.running && (
+          {/* A failed run already shows its error on the reply; this covers failures that left no reply. */}
+          {state.failure && !state.running && !lastReplyFailed && (
             <p className="text-sm text-destructive">{state.failure}</p>
           )}
         </ConversationContent>

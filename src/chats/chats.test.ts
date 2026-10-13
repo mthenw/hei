@@ -108,7 +108,7 @@ describe("Chats", () => {
         answer.includes("You said") ? `About: ${first}` : undefined,
     });
     const id = await titled.start(message("dinner plans"));
-    await titled.titled(id);
+    await titled.settled(id);
 
     expect((await titled.list())[0]?.title).toBe("About: dinner plans");
   });
@@ -127,7 +127,7 @@ describe("Chats", () => {
     const id = await titled.start(message("dinner plans"));
     await titled.rename(id, "My name for it");
     release();
-    await titled.titled(id);
+    await titled.settled(id);
 
     expect((await titled.list())[0]?.title).toBe("My name for it");
   });

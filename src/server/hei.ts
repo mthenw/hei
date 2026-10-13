@@ -10,6 +10,7 @@ import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite
 import { Agent } from "@/agent/agent";
 import { createDevModel } from "@/agent/dev-model";
 import { ModelCatalog } from "@/agent/model-catalog";
+import { ProviderPauses } from "@/agent/provider-pauses";
 import { Chats } from "@/chats/chats";
 import { Connections } from "@/connections/connections";
 import { DatabaseCredentialStore } from "@/connections/credential-store";
@@ -52,8 +53,10 @@ async function openHei(): Promise<Hei> {
   models.setProvider(openaiProvider());
   models.setProvider(anthropicProvider());
   models.setProvider(createDevModel({ tokensPerSecond: 30 }).provider);
+  const pauses = await ProviderPauses.open(db);
   const catalog = new ModelCatalog({
     models,
+    pauses,
     includeDevModel:
       process.env.NODE_ENV !== "production" ||
       process.env.HEI_DEV_MODEL === "1",
@@ -66,7 +69,7 @@ async function openHei(): Promise<Hei> {
   });
   return {
     agent,
-    chats: new Chats(agent, db),
+    chats: new Chats(agent, db, { pauses }),
     connections: new Connections({
       models,
       catalog,

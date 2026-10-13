@@ -5,5 +5,6 @@ export {
   type Message,
   ModelUnavailable,
   type Sent,
+  type Settled,
 } from "./agent";
-export type { ModelChoice } from "./model-catalog";
+export type { Catalog, ModelChoice } from "./model-catalog";

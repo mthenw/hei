@@ -71,11 +71,13 @@ See [ADR 0004](./adr/0004-model-access.md) for why.
 
 - **Model picker** in the composer, per chat: Claude Sonnet, Opus and Haiku 5.5 when `ANTHROPIC_API_KEY` is set; GPT-6.1 Sol, GPT-6 Sol, GPT-6 Astra and GPT-6 Luna as far as the ChatGPT account's own model list allows (all four if that list can't be read). New chats start on the first available of GPT-6.1 Sol, Claude Sonnet 5.5, then the dev model. Chats run with medium reasoning effort.
 - **Dev model** — the scripted model is offered in development, and in production only with `HEI_DEV_MODEL=1`.
-- **Failover trigger**: a run settles `unanswered` with a model error matching a limit pattern (`subscription_sharing_usage_limit_exceeded`, `usage_limit`, `rate_limit_error`/429, `credit balance is too low`). Hei switches the chat's model with `conversation.configure()` and resubmits.
+- **Failover trigger**: a message's run settles `unanswered` with a model error that `classifyLimit` recognises: the ChatGPT plan's usage limit (`subscription_sharing_usage_limit_exceeded`), used-up credits or a spend cap (`credit balance is too low`, `insufficient_quota`, billing), a rate limit still failing after pi-durable's retries (429, `rate_limit_error`), or ChatGPT plan usage still unavailable after retries. pi-durable does not retry the first two, so the run ends at once.
+- **Switch**: Hei pauses the provider, switches the chat to the other account's default model (`ModelCatalog.backupFor`) and writes a `hei.failover` transcript entry. That entry omits the failed message from the model's context (a pi-durable context edit), and Hei sends the message again, so the new model reads it once. The UI shows the message once, drops the failed attempt, and puts the note above the new reply.
 - **Sticky**: a chat stays on the model it switched to until the user changes it.
-- **Paused provider**: Claude after a credit error is skipped until an hourly probe succeeds; ChatGPT after a usage-limit error is skipped for 30 minutes (OpenAI gives no reset time).
-- **Both exhausted**: an inline error in the chat naming which limits were hit. Nothing is queued silently.
-- **Visible**: a note above the reply, e.g. "Switched to GPT-6.1 Sol — Claude credits used up".
+- **Paused provider**: skipped for 30 minutes after a ChatGPT usage limit (OpenAI gives no reset time), 1 hour after used-up Claude credits, 5 minutes after a lasting rate limit or unavailability. The next request after the pause is the probe. Pauses are stored in `app.sqlite` and survive restarts. Sending to a chat whose provider is paused switches it before sending; picking a paused provider's model by hand ends that pause.
+- **Both exhausted**: no switch; the failed reply shows the reason and what to do (add the other account, or that it is paused too). Nothing is queued silently.
+- **Visible**: a note above the reply, e.g. "Switched to GPT-6.1 Sol — Claude credits used up". A model change the user made shows "Switched to …" without a reason.
+- **Trying it**: in development, sending exactly `/limit` to the dev model makes it fail with a simulated ChatGPT usage limit.
 - Reactive only. No proactive watching of rate-limit headers in v1.
 
 ### Web access

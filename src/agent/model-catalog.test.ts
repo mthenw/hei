@@ -9,6 +9,7 @@ async function catalog(options: {
   chatgpt?: boolean;
   accountModels?: string[] | Error;
   includeDevModel?: boolean;
+  paused?: string[];
 }) {
   const credentials = new InMemoryCredentialStore();
   if (options.chatgpt)
@@ -38,6 +39,9 @@ async function catalog(options: {
     models,
     includeDevModel: options.includeDevModel ?? true,
     fetchAccountModels,
+    pauses: {
+      isPaused: (provider) => options.paused?.includes(provider) ?? false,
+    },
   });
   return { catalog: instance, fetchAccountModels };
 }
@@ -160,5 +164,83 @@ describe("ModelCatalog", () => {
     models.invalidate();
     await models.available();
     expect(fetchAccountModels).toHaveBeenCalledTimes(2);
+  });
+
+  it("backs up ChatGPT with Claude and Claude with ChatGPT, never the dev model", async () => {
+    const { catalog: models } = await catalog({
+      claudeKey: true,
+      chatgpt: true,
+      accountModels: ["gpt-6.1-sol"],
+    });
+
+    expect(
+      await models.backupFor({ provider: "openai", modelId: "gpt-6.1-sol" }),
+    ).toEqual({
+      provider: "anthropic",
+      modelId: "claude-sonnet-5-5",
+    });
+    expect(
+      await models.backupFor({
+        provider: "anthropic",
+        modelId: "claude-opus-5-5",
+      }),
+    ).toEqual({
+      provider: "openai",
+      modelId: "gpt-6.1-sol",
+    });
+    expect(
+      await models.backupFor({ provider: "hei-dev", modelId: "echo" }),
+    ).toMatchObject({
+      provider: "openai",
+    });
+  });
+
+  it("has no backup when the other account is missing or paused", async () => {
+    const chatgptOnly = await catalog({
+      chatgpt: true,
+      accountModels: ["gpt-6.1-sol"],
+    });
+    expect(
+      await chatgptOnly.catalog.backupFor({
+        provider: "openai",
+        modelId: "gpt-6.1-sol",
+      }),
+    ).toBeUndefined();
+
+    const claudePaused = await catalog({
+      claudeKey: true,
+      chatgpt: true,
+      accountModels: ["gpt-6.1-sol"],
+      paused: ["anthropic"],
+    });
+    expect(
+      await claudePaused.catalog.backupFor({
+        provider: "openai",
+        modelId: "gpt-6.1-sol",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("starts new chats and small jobs away from a paused provider", async () => {
+    const { catalog: models } = await catalog({
+      claudeKey: true,
+      chatgpt: true,
+      accountModels: ["gpt-6.1-sol", "gpt-6-luna"],
+      paused: ["openai"],
+    });
+
+    expect(await models.defaultModel()).toMatchObject({
+      provider: "anthropic",
+    });
+
+    const claudePaused = await catalog({
+      claudeKey: true,
+      chatgpt: true,
+      accountModels: ["gpt-6.1-sol", "gpt-6-luna"],
+      paused: ["anthropic"],
+    });
+    expect(await claudePaused.catalog.sideJobModel()).toMatchObject({
+      modelId: "gpt-6-luna",
+    });
   });
 });

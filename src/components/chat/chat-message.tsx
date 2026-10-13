@@ -25,7 +25,7 @@ export function ChatMessageView({
   switchedTo,
 }: {
   message: ChatMessage;
-  /** Display name of the model, when this reply is the first from a different model than the one before. */
+  /** Display name of the model, when this reply moved to a different model than the reply before, or failed over. */
   switchedTo?: string;
 }) {
   if (message.role === "user") {
@@ -43,6 +43,7 @@ export function ChatMessageView({
       {switchedTo && (
         <p className="text-xs text-muted-foreground">
           Switched to {switchedTo}
+          {message.failover && ` — ${message.failover.reason}`}
         </p>
       )}
       <MessageContent>
