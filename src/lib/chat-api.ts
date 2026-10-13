@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import type { ModelChoice } from "@/agent/model-catalog";
 import type { ConnectionStatus } from "@/connections/connections";
 import type { ProfileChange, ProfileData } from "@/profile/profile";
+import type { NewTodo, Todo, TodoChange } from "@/todos/todos";
 import type { MapsConfig } from "./maps-config";
 
 // Request ids make retries safe: the server admits a message with a given id once. nanoid rather than
@@ -76,6 +77,33 @@ export async function updateProfile(
     await request("PATCH", "/api/profile", change)
   ).json();
   return profile;
+}
+
+export async function addTodo(todo: NewTodo): Promise<Todo> {
+  return (await post("/api/todos", todo)).json().then((body) => body.todo);
+}
+
+export async function updateTodo(
+  id: number,
+  change: TodoChange,
+): Promise<Todo> {
+  return (await request("PATCH", `/api/todos/${id}`, change))
+    .json()
+    .then((body) => body.todo);
+}
+
+export async function deleteTodo(id: number) {
+  await request("DELETE", `/api/todos/${id}`);
+}
+
+export async function handOffTodo(id: number): Promise<Todo> {
+  return (await post(`/api/todos/${id}/hand-off`))
+    .json()
+    .then((body) => body.todo);
+}
+
+export async function stopTodoAgent(id: number) {
+  await post(`/api/todos/${id}/stop-agent`);
 }
 
 export async function getMapsConfig(): Promise<MapsConfig> {

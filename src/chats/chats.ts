@@ -1,4 +1,8 @@
-import type { AgentEventStream, ModelRef } from "@earendil-works/pi-durable";
+import type {
+  AgentEventStream,
+  Extension,
+  ModelRef,
+} from "@earendil-works/pi-durable";
 import { and, desc, eq } from "drizzle-orm";
 import { type Agent, type ChatId, ChatNotFound, type Message } from "@/agent";
 import { ProviderPauses } from "@/agent/provider-pauses";
@@ -12,6 +16,15 @@ import {
   titleFromMessage,
   titleInput,
 } from "./title";
+
+/**
+ * Something that happened to a chat, for code that follows chats it started (hand-off agents): a message was sent (or
+ * regenerated), the chat is about to be stopped, or it was deleted.
+ */
+export type ChatActivity = {
+  type: "sent" | "stopping" | "deleted";
+  chatId: ChatId;
+};
 
 export type ChatSummary = {
   id: ChatId;
@@ -51,6 +64,9 @@ export class InvalidTitle extends HeiError<"InvalidTitle"> {
  */
 export class Chats {
   private readonly listeners = new Set<() => void>();
+  private readonly activity = new Set<
+    (event: ChatActivity) => void | Promise<void>
+  >();
 
   /** Work still running for messages sent here: failovers and automatic titles. */
   private readonly pending = new Map<ChatId, Set<Promise<unknown>>>();
@@ -79,10 +95,15 @@ export class Chats {
   }
 
   /**
-   * Start a chat with its first message, on `model` or the default model. Retrying with the same request id returns the
-   * same chat. Once Hei answers, a model writes the title, unless the user has renamed the chat by then.
+   * Start a chat with its first message, on `model` or the default model, with any optional `extensions` added. Retrying
+   * with the same request id returns the same chat. Once Hei answers, a model writes the title, unless the user has
+   * renamed the chat by then.
    */
-  async start(message: Message, model?: ModelRef): Promise<ChatId> {
+  async start(
+    message: Message,
+    model?: ModelRef,
+    extensions?: Extension[],
+  ): Promise<ChatId> {
     const existing = await this.db
       .select({ id: chats.id })
       .from(chats)
@@ -90,7 +111,7 @@ export class Chats {
       .get();
     if (existing !== undefined) return existing.id;
 
-    const id = await this.agent.createChat(model);
+    const id = await this.agent.createChat(model, extensions);
     const now = new Date(this.now());
     await this.db.insert(chats).values({
       id,
@@ -134,6 +155,7 @@ export class Chats {
 
   async stop(chatId: ChatId): Promise<void> {
     await this.row(chatId);
+    await this.notify({ type: "stopping", chatId });
     await this.agent.stop(chatId);
   }
 
@@ -162,9 +184,11 @@ export class Chats {
    */
   async delete(chatId: ChatId): Promise<void> {
     await this.row(chatId);
+    await this.notify({ type: "stopping", chatId });
     await this.agent.stop(chatId);
     await this.db.delete(chats).where(eq(chats.id, chatId));
     this.changed();
+    await this.notify({ type: "deleted", chatId });
   }
 
   /** Every chat, most recently active first. */
@@ -180,6 +204,15 @@ export class Chats {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /**
+   * Call `listener` when a message is sent to an existing chat (or regenerated), before a chat is stopped, and when one
+   * is deleted. The operation waits for the listener.
+   */
+  observe(listener: (event: ChatActivity) => void | Promise<void>): () => void {
+    this.activity.add(listener);
+    return () => this.activity.delete(listener);
   }
 
   /**
@@ -217,6 +250,7 @@ export class Chats {
       .set({ updatedAt: new Date(this.now()) })
       .where(eq(chats.id, row.id));
     this.changed();
+    await this.notify({ type: "sent", chatId: row.id });
   }
 
   private track(chatId: ChatId, work: Promise<unknown>) {
@@ -261,6 +295,18 @@ export class Chats {
 
   private changed() {
     for (const listener of this.listeners) listener();
+  }
+
+  private async notify(event: ChatActivity) {
+    await Promise.all(
+      [...this.activity].map(async (listener) => {
+        try {
+          await listener(event);
+        } catch (error) {
+          console.warn(`A chat ${event.type} listener failed:`, error);
+        }
+      }),
+    );
   }
 }
 

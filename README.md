@@ -1,6 +1,6 @@
 # Hei
 
-A single-user personal assistant: chat with ChatGPT or Claude, with web search and a profile it keeps in mind. Built on Next.js and [pi-durable](https://github.com/earendil-works/pi/tree/main/packages/durable). Calendar and todos come later ([docs/parked.md](docs/parked.md)).
+A single-user personal assistant: chat with ChatGPT or Claude, with web search, places and a profile it keeps in mind, and a todo list whose items Hei can hand to background agents. Built on Next.js and [pi-durable](https://github.com/earendil-works/pi/tree/main/packages/durable). The calendar comes later ([docs/parked.md](docs/parked.md)).
 
 ## Setup
 
@@ -44,5 +44,6 @@ bun run test:e2e
 ## Docs
 
 - [docs/v1-spec.md](docs/v1-spec.md) — what v1 does and how it was verified.
+- [docs/todos-spec.md](docs/todos-spec.md) — todos, and handing them to agents.
 - [CONTEXT.md](CONTEXT.md) — the words Hei uses.
 - [docs/adr/](docs/adr/) — why it is built this way.

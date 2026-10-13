@@ -41,6 +41,12 @@ export type Settled =
       entry: number | undefined;
     };
 
+/** How a chat's last message ended. */
+export type Outcome =
+  | { kind: "answered" }
+  | { kind: "failed"; error: string }
+  | { kind: "stopped" };
+
 /** A message Hei admitted. */
 export type Sent = {
   /** Resolves when the run that answers the message ends. */
@@ -89,6 +95,8 @@ export type AgentOptions = {
   catalog: Catalog;
   /** Extensions beside Hei's own, such as web access. Every chat uses all of them. */
   extensions?: Extension[];
+  /** Extensions only the chats that ask for them use, such as the hand-off agent's (see `createChat`). */
+  optionalExtensions?: Extension[];
   /** The user's Profile, read on every request; defaults to an empty one. */
   persona?: PersonaSource;
 };
@@ -107,12 +115,20 @@ export class Agent {
   /** Open the Harness and continue any run the previous process left unfinished. */
   static async open(options: AgentOptions): Promise<Agent> {
     const registry = createRegistry();
-    registry.install(heiExtension(options.persona));
-    for (const extension of options.extensions ?? [])
+    const always = [
+      heiExtension(options.persona),
+      ...(options.extensions ?? []),
+    ];
+    for (const extension of [...always, ...(options.optionalExtensions ?? [])])
       registry.install(extension);
     const harness = await Harness.open(
       options.storage,
-      { models: options.models, registry },
+      {
+        models: options.models,
+        registry,
+        // The default selection: optional extensions only reach the chats that add them.
+        settings: { extensions: always },
+      },
       context,
     );
     harness.resume();
@@ -124,18 +140,67 @@ export class Agent {
     return this.catalog.available();
   }
 
-  /** Create an empty chat on `model`, or on the default model. */
-  async createChat(model?: ModelRef): Promise<ChatId> {
+  /** Create an empty chat on `model`, or on the default model. `extensions` adds optional extensions to it alone. */
+  async createChat(
+    model?: ModelRef,
+    extensions?: Extension[],
+  ): Promise<ChatId> {
     const chosen = model ?? (await this.catalog.defaultModel());
     await this.requireAvailable(chosen);
     const conversation = await this.harness.createConversation(
       {
         ownership: { kind: "ownerless" },
-        agent: { model: chosen, thinkingLevel: "medium" },
+        agent: {
+          model: chosen,
+          thinkingLevel: "medium",
+          ...(extensions?.length ? { extensions: { add: extensions } } : {}),
+        },
       },
       context,
     );
     return conversation.id;
+  }
+
+  /** Resolves when the chat has nothing running or queued. */
+  async waitForIdle(chatId: ChatId): Promise<void> {
+    const conversation = await this.conversation(chatId);
+    await conversation.waitForIdle(context);
+  }
+
+  /** How the chat's last message ended: answered, failed with a model error or a dead end, or stopped by the user. */
+  async lastOutcome(chatId: ChatId): Promise<Outcome> {
+    const conversation = await this.conversation(chatId);
+    const page = await conversation.entries(
+      { order: "descending" },
+      50,
+      undefined,
+      context,
+    );
+    for (const entry of page.items) {
+      if (entry.kind === FAILOVER_ENTRY) {
+        const note = entry.data as FailoverNote;
+        // A switch is followed by the answer from the other model; only a dead end ends here.
+        if (note.to === undefined)
+          return {
+            kind: "failed",
+            error: [note.reason, note.hint].filter(Boolean).join(". "),
+          };
+        continue;
+      }
+      const message = entry.model?.[0];
+      if (message?.role === "assistant") {
+        if (message.stopReason === "aborted") return { kind: "stopped" };
+        if (message.stopReason === "error")
+          return {
+            kind: "failed",
+            error: message.errorMessage ?? "The model returned an error.",
+          };
+        return { kind: "answered" };
+      }
+      if (message?.role === "user" && entry.kind === "pi.user")
+        return { kind: "failed", error: "The message got no answer." };
+    }
+    return { kind: "failed", error: "The chat has no answer yet." };
   }
 
   /** The model a chat runs on now. */

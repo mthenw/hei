@@ -24,6 +24,9 @@ import { claimDataDir, dataDir } from "@/lib/data-dir";
 import type { MapsConfig } from "@/lib/maps-config";
 import { SecretBox } from "@/lib/secret-box";
 import { Profile } from "@/profile/profile";
+import { HandOffs, handOffExtension } from "@/todos/hand-offs";
+import { Todos } from "@/todos/todos";
+import { todosExtension } from "@/todos/tools";
 
 /** Everything the server runs on, built once per process. */
 export type Hei = {
@@ -31,6 +34,8 @@ export type Hei = {
   chats: Chats;
   connections: Connections;
   profile: Profile;
+  todos: Todos;
+  handOffs: HandOffs;
   maps: MapsConfig;
 };
 
@@ -65,6 +70,7 @@ async function openHei(): Promise<Hei> {
   models.setProvider(createDevModel({ tokensPerSecond: 30 }).provider);
   const pauses = await ProviderPauses.open(db);
   const profile = await Profile.open(db);
+  const todos = new Todos(db, { timeZone: () => profile.get().timeZone });
   const catalog = new ModelCatalog({
     models,
     pauses,
@@ -72,6 +78,11 @@ async function openHei(): Promise<Hei> {
       process.env.NODE_ENV !== "production" ||
       process.env.HEI_DEV_MODEL === "1",
   });
+
+  // HandOffs needs the Agent, and the todo tools need HandOffs. A run resumed while the Agent opens may call
+  // hand_off_todo, so the tool waits until HandOffs exists.
+  const handOffsReady = Promise.withResolvers<HandOffs>();
+  const handOffExt = handOffExtension(todos);
 
   // Tools that need a key are offered only with one, rather than as tools that fail: web access needs a Jina key,
   // finding places a Google Maps key.
@@ -82,17 +93,28 @@ async function openHei(): Promise<Hei> {
     models,
     catalog,
     extensions: [
+      todosExtension(todos, {
+        handOff: async (todoId) =>
+          (await handOffsReady.promise).handOff(todoId),
+      }),
       ...(jinaKey ? [webExtension(new Jina({ apiKey: jinaKey }))] : []),
       ...(placesKey
         ? [placesExtension(new GooglePlaces({ apiKey: placesKey }))]
         : []),
     ],
+    optionalExtensions: [handOffExt],
     persona: profile,
   });
+  const chats = new Chats(agent, db, { pauses });
+  const handOffs = new HandOffs({ todos, chats, agent, extension: handOffExt });
+  handOffsReady.resolve(handOffs);
+  await handOffs.resume();
   return {
     agent,
     profile,
-    chats: new Chats(agent, db, { pauses }),
+    todos,
+    handOffs,
+    chats,
     connections: new Connections({
       models,
       catalog,

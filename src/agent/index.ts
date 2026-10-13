@@ -5,6 +5,7 @@ export {
   type Message,
   ModelUnavailable,
   NothingToRegenerate,
+  type Outcome,
   type Sent,
   type Settled,
 } from "./agent";

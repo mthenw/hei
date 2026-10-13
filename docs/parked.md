@@ -21,20 +21,14 @@ Work deliberately left out of [v1](./v1-spec.md). Each section records where the
 - Which time.fyi features matter: travel mode, extra time zones, person overlay (P), cross-calendar busy-blocking, booking links?
 - Default calendar for new events; colour per calendar.
 
-## v3 — Todos and agent hand-off
+## Todos and hand-off — built
 
-**Leaning**
-- Todos live in the app DB ([ADR 0002](./adr/0002-separate-app-database.md)), shown time.fyi-style (Today / Upcoming) and draggable onto the calendar to block time.
-- Handing a todo to an agent creates a background pi-durable conversation for it (`createConversation({ ownership: { kind: "ownerless" } })`, or the background subagent pattern in pi-durable's example 23). `harness.taskGraph()` can drive a "running agents" panel.
-- The agent conversation is a normal chat you can open, steer, or stop.
-
-**Open questions**
-- Autonomy: what may an agent do without asking (browse, draft, send, buy)? Where does approval happen — plan card, chat, notification?
-- How does an agent report back: comment on the todo, mark it done, open a chat, push notification?
-- Push notifications on the phone need Web Push, which on iOS requires a home-screen-installed PWA over HTTPS.
-- Concurrency: how many agents at once, given opaque ChatGPT Plus 5-hour limits?
-- Which tools do agents get beyond web search/fetch?
-- Recurring todos? Due dates and reminders? Projects or tags?
+Built ahead of the calendar; see [todos-spec.md](./todos-spec.md). Still open:
+- Dragging todos onto the calendar to block time (needs v2).
+- Push notifications when an agent needs you or is ready: Web Push, which on iOS requires a home-screen-installed PWA over HTTPS.
+- Tools that act outside Hei (send, book, buy) and the approval they need before agents get them.
+- Recurring todos, reminders, lists or projects.
+- A "running agents" panel; for now each todo shows its agent's status.
 
 ## Later
 

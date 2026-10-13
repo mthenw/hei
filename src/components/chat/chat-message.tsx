@@ -26,6 +26,7 @@ import type { AssistantPart, ChatMessage, ToolPart } from "@/lib/chat-stream";
 import { citations } from "@/lib/citations";
 import { isPlacesTool, PlacesToolView } from "./places-tool";
 import { CitationLink, CitationsProvider, SourceChips } from "./sources";
+import { isTodoTool, TodoToolView } from "./todo-tool";
 import { isWebTool, WebToolView } from "./web-tool";
 
 // Stable, so memoised markdown blocks aren't re-rendered for a new object; the links read their numbers from context.
@@ -178,6 +179,7 @@ function AssistantPartView({
     case "tool":
       if (isWebTool(part)) return <WebToolView part={part} />;
       if (isPlacesTool(part)) return <PlacesToolView part={part} />;
+      if (isTodoTool(part)) return <TodoToolView part={part} />;
       return <ToolCallView part={part} />;
   }
 }

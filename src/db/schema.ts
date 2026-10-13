@@ -53,3 +53,36 @@ export const profile = sqliteTable("profile", {
   instructions: text("instructions"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+/** A todo on the Todos page. Dates and times are local to the Profile's time zone. */
+export const todos = sqliteTable("todos", {
+  // Never reused: Hei and its agents refer to todos by id.
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  notes: text("notes").notNull().default(""),
+  /** "2026-10-17"; null for Someday. */
+  dueDate: text("due_date"),
+  /** "14:30", 24-hour; only with a due date. */
+  dueTime: text("due_time"),
+  priority: text("priority", { enum: ["high", "normal", "low"] })
+    .notNull()
+    .default("normal"),
+  /** When it was marked done; null while open. */
+  doneAt: integer("done_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  /** Hand-off: the agent's status; null when the todo was never handed off. */
+  agentStatus: text("agent_status", {
+    enum: ["queued", "working", "needs_you", "ready", "failed", "stopped"],
+  }),
+  /** The agent's chat, once it has started. */
+  agentChatId: integer("agent_chat_id"),
+  /** What the agent reported. */
+  agentResult: text("agent_result"),
+  /** Why the agent's last run failed. */
+  agentError: text("agent_error"),
+  /** When the todo was handed off; queued todos start in this order. */
+  handedOffAt: integer("handed_off_at", { mode: "timestamp_ms" }),
+});
+
+export type TodoRow = typeof todos.$inferSelect;

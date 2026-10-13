@@ -56,11 +56,23 @@ A Provider Hei skips after a limit error until its pause expires or a probe succ
 **Side job**:
 A small model task outside any Chat's Run, such as generating a Chat title.
 
+### Todos
+
+**Todo**:
+An item on the Todos page: a title, notes, an optional due date and time, and a priority (high, normal or low).
+_Avoid_: Task (a pi-durable task is something else)
+
+**Hand-off**:
+Giving a todo to an Agent.
+_Avoid_: Delegation
+
+**Agent**:
+A Chat that works on a handed-off todo in the background, with one more extension than other chats. It reports its result on the todo or asks the user in its Chat.
+
+**Agent status**:
+Where a todo's Agent is: Queued, Working, Needs you, Ready for review, Failed or Stopped.
+
 ### Later versions
 
 **Plan card**:
 Hei's proposed calendar change, shown for Approve / Not now before anything is applied.
-
-**Hand-off**:
-Giving a todo to a background agent, which works on it in its own Conversation.
-_Avoid_: Delegation
