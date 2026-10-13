@@ -271,10 +271,14 @@ function PlaceCard({
 
   return (
     <li className="flex items-start gap-2">
-      <PlaceNumber number={number} className="mt-3" />
+      <PlaceNumber number={number} className={unavailable ? "" : "mt-3"} />
+      {/* Google's card links to the place itself; without the card, Hei's own link does. */}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {!unavailable && <div ref={container} className="hei-place-card" />}
-        <MapsLink placeId={placeId} query={query} />
+        {unavailable ? (
+          <MapsLink placeId={placeId} query={query} />
+        ) : (
+          <div ref={container} className="hei-place-card" />
+        )}
       </div>
     </li>
   );
