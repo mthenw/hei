@@ -16,6 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "Hei", template: "%s · Hei" },
   description: "Personal assistant",
+  // Opened from the iPhone home screen, Hei runs full-screen under a translucent status bar; the safe-area padding in
+  // the layout keeps content clear of it.
+  appleWebApp: {
+    capable: true,
+    title: "Hei",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {

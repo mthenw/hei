@@ -15,6 +15,7 @@ import {
 import { HeiError, isHeiError } from "@/lib/errors";
 import type { FailoverNote } from "@/lib/failover-note";
 import { FAILOVER_ENTRY } from "@/lib/failover-note";
+import { REGENERATE_ENTRY, type RegenerateNote } from "@/lib/regenerate-note";
 import { heiExtension, type PersonaSource } from "./extension";
 import type { Catalog, ModelChoice } from "./model-catalog";
 
@@ -66,6 +67,19 @@ export class ModelUnavailable extends HeiError<"ModelUnavailable"> {
 
   static is(error: unknown): error is ModelUnavailable {
     return isHeiError(error, "ModelUnavailable");
+  }
+}
+
+export class NothingToRegenerate extends HeiError<"NothingToRegenerate"> {
+  constructor(chatId: ChatId) {
+    super(
+      "NothingToRegenerate",
+      `Chat ${chatId} has no message to answer again.`,
+    );
+  }
+
+  static is(error: unknown): error is NothingToRegenerate {
+    return isHeiError(error, "NothingToRegenerate");
   }
 }
 
@@ -198,6 +212,42 @@ export class Agent {
     );
   }
 
+  /**
+   * Prepare to answer the last message again: stop any reply in progress, then write a `hei.regenerate` entry that hides
+   * the message and everything after it from the model's context. Returns the message for the caller to send again.
+   */
+  async regenerate(chatId: ChatId, requestId: string): Promise<Message> {
+    const conversation = await this.conversation(chatId);
+    await conversation.abort(context);
+    const { entries, contributions } = await conversation.context(context);
+    // What the model still sees: entries already omitted, or left out like aborted responses, contribute nothing.
+    const seen = (index: number) => contributions[index].length > 0;
+    const last = entries.findLastIndex(
+      (entry, index) => entry.kind === "pi.user" && seen(index),
+    );
+    if (last === -1) throw new NothingToRegenerate(chatId);
+
+    const content = userText(entries[last].model?.[0]);
+    const omitted = entries.filter((_, index) => index >= last && seen(index));
+    const note: RegenerateNote = { resubmitted: content };
+    await conversation.submit(
+      {
+        type: "write",
+        requestId: `${requestId}:regenerate`,
+        entry: {
+          kind: REGENERATE_ENTRY,
+          data: note,
+          edits: omitted.map((entry) => ({
+            target: entry.id,
+            action: "omit" as const,
+          })),
+        },
+      },
+      context,
+    );
+    return { content, requestId };
+  }
+
   /** Stop the current run and withdraw queued messages. Resolves once the chat is idle. */
   async stop(chatId: ChatId): Promise<void> {
     const conversation = await this.conversation(chatId);
@@ -251,6 +301,17 @@ export class Agent {
     if (conversation === undefined) throw new ChatNotFound(chatId);
     return conversation;
   }
+}
+
+/** The text of a user message as Hei sent it. */
+function userText(message: { role: string; content?: unknown } | undefined) {
+  if (message?.role !== "user") return "";
+  if (typeof message.content === "string") return message.content;
+  if (!Array.isArray(message.content)) return "";
+  return message.content
+    .filter((block) => block?.type === "text")
+    .map((block) => block.text as string)
+    .join("\n");
 }
 
 function textOf(message: { role: string; content?: unknown } | undefined) {

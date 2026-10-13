@@ -123,20 +123,13 @@ export class Chats {
   }
 
   async send(chatId: ChatId, message: Message): Promise<void> {
+    await this.followUp(await this.row(chatId), message);
+  }
+
+  /** Answer the chat's last message again, in place of its reply. A reply in progress is stopped first. */
+  async regenerate(chatId: ChatId, requestId: string): Promise<void> {
     const row = await this.row(chatId);
-    const { answer } = await this.submit(chatId, message);
-    // A chat whose first answer never came, or couldn't be titled, gets its title from a later exchange.
-    this.track(
-      chatId,
-      row.titleByUser || row.titleWritten
-        ? answer
-        : answer.then((text) => this.retitle(chatId, message.content, text)),
-    );
-    await this.db
-      .update(chats)
-      .set({ updatedAt: new Date(this.now()) })
-      .where(eq(chats.id, chatId));
-    this.changed();
+    await this.followUp(row, await this.agent.regenerate(chatId, requestId));
   }
 
   async stop(chatId: ChatId): Promise<void> {
@@ -207,6 +200,23 @@ export class Chats {
         return undefined;
       });
     return { answer };
+  }
+
+  /** Send a message in an existing chat, follow its reply, and move the chat to the top of the list. */
+  private async followUp(row: ChatRow, message: Message) {
+    const { answer } = await this.submit(row.id, message);
+    // A chat whose first answer never came, or couldn't be titled, gets its title from a later exchange.
+    this.track(
+      row.id,
+      row.titleByUser || row.titleWritten
+        ? answer
+        : answer.then((text) => this.retitle(row.id, message.content, text)),
+    );
+    await this.db
+      .update(chats)
+      .set({ updatedAt: new Date(this.now()) })
+      .where(eq(chats.id, row.id));
+    this.changed();
   }
 
   private track(chatId: ChatId, work: Promise<unknown>) {

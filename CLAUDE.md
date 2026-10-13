@@ -45,3 +45,5 @@ The chat UI's only dependency on pi-durable's event shapes is `src/lib/chat-stre
 ## Tests
 
 The test suite never calls a real model. Build agents with `openTestAgent()` from `src/agent/testing.ts`: it offers only the scripted dev model and gives pi-ai an empty environment, so API keys on the machine stay invisible to tests.
+
+`bun run test:e2e` is the Playwright smoke test (`e2e/`). It runs `next build`, then `next start` on port 3200 with a throwaway `HEI_DATA_DIR`, the keys from `.env` blanked and only the dev model, and drives the installed Chrome (no browser download). It can run beside the dev server.

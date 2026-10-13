@@ -18,13 +18,20 @@ export function readMessage(body: Record<string, unknown>): Message | Response {
     return badRequest(
       `content must be at most ${MAX_CONTENT_LENGTH} characters.`,
     );
+  const id = readRequestId(requestId);
+  if (id instanceof Response) return id;
+  return { content, requestId: id };
+}
+
+/** Read a request id, the key that makes a retried request safe, or answer 400. */
+export function readRequestId(value: unknown): string | Response {
   if (
-    typeof requestId !== "string" ||
-    requestId === "" ||
-    requestId.length > MAX_REQUEST_ID_LENGTH
+    typeof value !== "string" ||
+    value === "" ||
+    value.length > MAX_REQUEST_ID_LENGTH
   )
     return badRequest("requestId must be a non-empty string.");
-  return { content, requestId };
+  return value;
 }
 
 /** Read an optional `model: { provider, modelId }`, or answer 400. */

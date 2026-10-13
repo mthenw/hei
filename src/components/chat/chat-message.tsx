@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { RefreshCcwIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import {
   Message,
+  MessageAction,
+  MessageActions,
   MessageContent,
   MessageResponse,
 } from "@/components/ai-elements/message";
@@ -30,10 +33,13 @@ const markdownComponents = { a: CitationLink };
 export function ChatMessageView({
   message,
   switchedTo,
+  onRegenerate,
 }: {
   message: ChatMessage;
   /** Display name of the model, when this reply moved to a different model than the reply before, or failed over. */
   switchedTo?: string;
+  /** Offered on the last reply while Hei is idle: answer its message again. */
+  onRegenerate?: () => Promise<void>;
 }) {
   if (message.role === "user") {
     return (
@@ -45,15 +51,23 @@ export function ChatMessageView({
     );
   }
 
-  return <AssistantMessageView message={message} switchedTo={switchedTo} />;
+  return (
+    <AssistantMessageView
+      message={message}
+      switchedTo={switchedTo}
+      onRegenerate={onRegenerate}
+    />
+  );
 }
 
 function AssistantMessageView({
   message,
   switchedTo,
+  onRegenerate,
 }: {
   message: Extract<ChatMessage, { role: "assistant" }>;
   switchedTo?: string;
+  onRegenerate?: () => Promise<void>;
 }) {
   const cites = useMemo(
     () =>
@@ -94,7 +108,42 @@ function AssistantMessageView({
         )}
         <SourceChips cited={cites.cited} />
       </MessageContent>
+      {onRegenerate && (
+        <MessageActions className="-ml-2">
+          <RegenerateAction onRegenerate={onRegenerate} />
+        </MessageActions>
+      )}
     </Message>
+  );
+}
+
+function RegenerateAction({
+  onRegenerate,
+}: {
+  onRegenerate: () => Promise<void>;
+}) {
+  // One click, one new reply: the button waits for the request, then the reply it belongs to is replaced.
+  const [pending, setPending] = useState(false);
+
+  async function regenerate() {
+    setPending(true);
+    try {
+      await onRegenerate();
+    } catch (error) {
+      console.warn("Could not regenerate the reply:", error);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <MessageAction
+      tooltip="Regenerate"
+      disabled={pending}
+      onClick={() => void regenerate()}
+    >
+      <RefreshCcwIcon />
+    </MessageAction>
   );
 }
 

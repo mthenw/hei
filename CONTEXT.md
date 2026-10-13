@@ -20,6 +20,10 @@ _Avoid_: Turn (a run contains turns)
 **Follow-up**:
 A message sent while a Run is in progress, queued to run after it.
 
+**Regenerate**:
+Answering a Chat's last message again, in place of its reply. The model never sees the reply it replaces.
+_Avoid_: Retry (that is pi-durable retrying a failed model request by itself)
+
 **Source**:
 A web page a reply cites, shown as a numbered marker and a chip under the reply.
 _Avoid_: Reference, link

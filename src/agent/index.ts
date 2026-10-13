@@ -4,6 +4,7 @@ export {
   ChatNotFound,
   type Message,
   ModelUnavailable,
+  NothingToRegenerate,
   type Sent,
   type Settled,
 } from "./agent";

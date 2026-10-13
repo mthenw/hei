@@ -1,4 +1,4 @@
-import { ChatNotFound, ModelUnavailable } from "@/agent";
+import { ChatNotFound, ModelUnavailable, NothingToRegenerate } from "@/agent";
 import { InvalidTitle } from "@/chats";
 import { SignInError } from "@/connections/connections";
 import { CredentialsUnavailable } from "@/connections/credential-store";
@@ -26,7 +26,8 @@ function statusOf(error: unknown): number | undefined {
     SignInError.is(error)
   )
     return 400;
-  if (CredentialsUnavailable.is(error)) return 409;
+  if (CredentialsUnavailable.is(error) || NothingToRegenerate.is(error))
+    return 409;
   return undefined;
 }
 

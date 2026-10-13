@@ -7,9 +7,15 @@ import {
   ConversationContent,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
+import { usePageTitle } from "@/components/shell/section-layout";
 import { Spinner } from "@/components/ui/spinner";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import { sendMessage, setChatModel, stopChat } from "@/lib/chat-api";
+import {
+  regenerateReply,
+  sendMessage,
+  setChatModel,
+  stopChat,
+} from "@/lib/chat-api";
 import { chatMessages } from "@/lib/chat-stream";
 import { ChatComposer } from "./chat-composer";
 import { useChatList } from "./chat-list";
@@ -34,6 +40,7 @@ export function ChatView({ chatId }: { chatId: number }) {
   const last = messages.at(-1);
   const lastReplyFailed =
     last?.role === "assistant" && last.error !== undefined;
+  const regenerate = () => regenerateReply(chatId);
 
   const status = [
     state.queued > 0 && `${state.queued} queued`,
@@ -63,6 +70,9 @@ export function ChatView({ chatId }: { chatId: number }) {
                 message.model
                   ? nameOf(message.model)
                   : undefined
+              }
+              onRegenerate={
+                message === last && !state.running ? regenerate : undefined
               }
             />
           ))}
@@ -102,6 +112,7 @@ function useChatTitle(chatId: number) {
   const router = useRouter();
   const { chats } = useChatList();
   const title = chats.find((chat) => chat.id === chatId)?.title;
+  usePageTitle(title);
   // A chat that was just started may reach this page before the list does, so only a chat that was listed and then
   // disappeared counts as deleted.
   const seen = useRef(false);

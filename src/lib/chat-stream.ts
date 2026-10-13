@@ -12,6 +12,7 @@ import type {
   SnapshotEvent,
 } from "@earendil-works/pi-durable";
 import { FAILOVER_ENTRY, type FailoverNote } from "./failover-note";
+import { REGENERATE_ENTRY, type RegenerateNote } from "./regenerate-note";
 
 /**
  * Client-side state of one Chat, rebuilt from pi-durable's agent events: a snapshot on (re)connect, then one batch of
@@ -280,7 +281,8 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
   const messages: ChatMessage[] = [];
   const marks: ResponseMarks = new WeakMap();
   let reply: AssistantChatMessage | undefined;
-  // A failover's reason, for the next reply; and the message it sent again, whose second copy isn't shown.
+  // A failover's reason, for the next reply; and a message Hei sent again, after a failover or to regenerate the
+  // reply, whose second copy isn't shown.
   let switched: { reason: string } | undefined;
   let resent: string | undefined;
 
@@ -302,7 +304,18 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
     return reply;
   };
 
+  // The reply that is showing gives way to the next one, which answers the message it sent again.
+  const resend = (message: string) => {
+    if (reply !== undefined && messages.at(-1) === reply) messages.pop();
+    reply = undefined;
+    resent = message;
+  };
+
   for (const entry of state.entries) {
+    if (entry.kind === REGENERATE_ENTRY) {
+      resend((entry.data as RegenerateNote).resubmitted);
+      continue;
+    }
     if (entry.kind === FAILOVER_ENTRY) {
       const note = entry.data as FailoverNote;
       if (note.to === undefined) {
@@ -311,12 +324,8 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
           reply.error = [note.reason, note.hint].filter(Boolean).join(". ");
         continue;
       }
-      if (note.resubmitted !== undefined) {
-        // The failed attempt gives way to the reply on the other model.
-        if (reply !== undefined && messages.at(-1) === reply) messages.pop();
-        reply = undefined;
-        resent = note.resubmitted;
-      }
+      // The failed attempt gives way to the reply on the other model.
+      if (note.resubmitted !== undefined) resend(note.resubmitted);
       switched = { reason: note.reason };
       continue;
     }

@@ -19,17 +19,18 @@ Decisions agreed in the grilling session of 2026-10-12. Architecture-shaping cho
 ## Users and environment
 
 - One user. No accounts table, no login in v1.
-- Runs locally during development (`bun run dev`); `bun run dev:lan` starts the dev server on the Mac's LAN IP so a phone on the same network can reach it (Next.js only serves dev assets to the hostname it was started with). Anyone on the LAN can use it in that mode — acceptable for development.
+- Runs locally during development (`bun run dev`); `bun run dev:lan` starts the dev server on the Mac's LAN IP instead, so a phone on the same network can reach it (Next.js only serves dev assets to the hostname it was started with, and runs one dev server per project, so stop `bun run dev` first). Anyone on the LAN can use it in that mode — acceptable for development.
 - Later target: Synology DS923+ (x86, 4 GB) in Docker. Not a v1 concern beyond keeping the footprint small.
 
 ## Features
 
 ### Chat
 - Replies stream token by token, rendered as markdown with code highlighting.
-- **Stop** aborts the current run. **Regenerate** re-runs the last reply.
+- **Stop** aborts the current run.
+- **Regenerate**, under the last reply while Hei is idle, answers that reply's message again in its place. A `hei.regenerate` transcript entry omits the message and the old reply from the model's context (a pi-durable context edit) and Hei sends the message again, the same way as any message (failover included). The UI shows the message once, with the new reply.
 - Tool calls render as collapsible blocks (name, arguments, live output, result).
 - Model reasoning is visible while it streams, then collapses to "Thought for Ns". Default reasoning effort: medium.
-- Every assistant reply shows the model that produced it.
+- A reply names its model only when the model changed since the reply before it ("Switched to …", see failover).
 - Web-backed answers cite sources as numbered markers `[1]` with source chips (favicon + domain) under the reply.
 
 ### Sending while Hei is busy
@@ -104,14 +105,14 @@ See [ADR 0003](./adr/0003-own-web-tools.md).
   - `app.sqlite` — Hei's own data via Drizzle.
 - **Live updates**: a route handler per chat reads `watchEvents(harness, conversationId)` and streams it as SSE.
 - **UI**: shadcn/ui + Tailwind + AI Elements (presentational only; state comes from Hei's own SSE hook).
-- **Tooling**: Biome (lint + format), Vitest with pi-ai's fake model for agent code, one Playwright smoke test of the chat.
+- **Tooling**: Biome (lint + format), Vitest with pi-ai's fake model for agent code, and a Playwright smoke test of the chat (`bun run test:e2e`): it builds Hei, starts it on port 3200 with a throwaway data directory and only the dev model, and drives the installed Chrome at desktop and phone sizes.
 - `@earendil-works/*` packages pinned to exact versions.
 
-### App database (initial)
-- `chats` — id (the pi-durable conversation id), title, whether the user set the title, the request id of the starting message (makes starting a chat idempotent), created and last-activity timestamps. The chat's model lives in pi-durable's `pi.agent` document, not here.
-- `profile` — single row: about me, timezone, assistant instructions.
+### App database
+- `chats` — id (the pi-durable conversation id), title, whether the user set the title and whether a model wrote it, the request id of the starting message (makes starting a chat idempotent), created and last-activity timestamps. The chat's model lives in pi-durable's `pi.agent` document, not here.
+- `profile` — single row: about you, time zone, reply language, assistant instructions.
 - `credentials` — pi-ai credential store backing (ChatGPT OAuth tokens), encrypted with `HEI_SECRET`.
-- `provider_status` — paused-until per provider, last error.
+- `provider_pauses` — paused-until and reason per provider.
 - `settings` — install-scoped values, including the stable SIWC device id.
 
 ### Environment
@@ -125,6 +126,17 @@ See [ADR 0003](./adr/0003-own-web-tools.md).
 4. The chat appears in the sidebar under Today with a generated title; rename and delete work.
 5. Fill in the profile — the next reply visibly uses it.
 6. When the current provider hits its limit, the next reply comes from the other one, with the switch note shown.
+
+### Walkthrough, 13 October 2026
+All eight build steps are in. How each item was checked:
+1. Done with GPT-6.1 Sol through Sign in with ChatGPT: it searched, read the page, and answered with numbered sources; each search and read shows as a collapsible line.
+2. The smoke test closes the tab mid-reply and opens the chat at phone size, where the reply finishes. A real phone needs `bun run dev:lan`.
+3. Done by restarting the dev server mid-reply; the agent tests also reopen storage mid-run.
+4. GPT-6 Luna writes the titles; the smoke test renames and deletes a chat.
+5. With a Profile filled in, the next request's system prompt carries About you, the time zone's date and the reply language (checked on a test server with the dev model).
+6. Not yet seen with a real limit. Sending `/limit` to the dev model simulates one, and the failover tests cover both directions, a paused provider and both accounts exhausted. Watch the first real switch.
+
+Not verified yet: installing to a phone's home screen, which needs Hei behind HTTPS.
 
 ## Build order
 

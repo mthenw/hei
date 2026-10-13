@@ -1,7 +1,14 @@
 "use client";
 
 import { PanelLeftIcon } from "lucide-react";
-import { type MouseEvent, type ReactNode, useState } from "react";
+import {
+  createContext,
+  type MouseEvent,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -9,6 +16,19 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+
+const PageTitleContext = createContext<(title: string | undefined) => void>(
+  () => {},
+);
+
+/** Show `title` in the phone header instead of the section's name, while the calling page is shown. */
+export function usePageTitle(title: string | undefined) {
+  const setTitle = useContext(PageTitleContext);
+  useEffect(() => {
+    setTitle(title);
+    return () => setTitle(undefined);
+  }, [title, setTitle]);
+}
 
 type SectionLayoutProps = {
   title: string;
@@ -23,6 +43,7 @@ export function SectionLayout({
   children,
 }: SectionLayoutProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pageTitle, setPageTitle] = useState<string>();
 
   // Picking a link in the drawer navigates away, so the drawer should close.
   function closeOnLinkClick(event: MouseEvent) {
@@ -58,10 +79,14 @@ export function SectionLayout({
                 </SheetContent>
               </Sheet>
             )}
-            <span className="truncate px-1 text-sm font-medium">{title}</span>
+            <span className="truncate px-1 text-sm font-medium">
+              {pageTitle ?? title}
+            </span>
           </div>
         </header>
-        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <PageTitleContext value={setPageTitle}>{children}</PageTitleContext>
+        </main>
       </div>
     </>
   );

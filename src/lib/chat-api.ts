@@ -28,6 +28,12 @@ export async function sendMessage(chatId: number, content: string) {
   });
 }
 
+export async function regenerateReply(chatId: number) {
+  await post(`/api/chats/${chatId}/regenerate`, {
+    requestId: newRequestId(),
+  });
+}
+
 export async function stopChat(chatId: number) {
   await post(`/api/chats/${chatId}/stop`);
 }

@@ -43,3 +43,7 @@ next-env.d.ts
 
 # hei runtime data (SQLite files)
 /data
+
+# playwright
+/test-results
+/playwright-report
