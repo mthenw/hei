@@ -6,7 +6,8 @@ Single-user personal assistant: Next.js + [pi-durable](https://github.com/earend
 - [CONTEXT.md](CONTEXT.md) — domain vocabulary. Use these terms in code, UI and commits.
 - [docs/adr/](docs/adr/) — why the architecture looks the way it does. Read the relevant ADR before changing process layout, storage, web tools or model access.
 - [docs/todos-spec.md](docs/todos-spec.md) — todos and hand-off agents.
-- [docs/parked.md](docs/parked.md) — calendar and later work. Read when a task touches them.
+- [docs/calendar-spec.md](docs/calendar-spec.md) — calendars, Hei's plan cards, and todos on the calendar.
+- [docs/parked.md](docs/parked.md) — later work. Read when a task touches it.
 
 @AGENTS.md
 

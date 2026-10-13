@@ -72,7 +72,15 @@ A Chat that works on a handed-off todo in the background, with one more extensio
 **Agent status**:
 Where a todo's Agent is: Queued, Working, Needs you, Ready for review, Failed or Stopped.
 
-### Later versions
+### Calendar
+
+**Calendar account**:
+A Google sign-in or an ICS link, with one or more calendars.
+_Avoid_: Integration
 
 **Plan card**:
-Hei's proposed calendar change, shown for Approve / Not now before anything is applied.
+Hei's proposed calendar changes, shown in a chat for Approve / Not now; nothing changes before Approve, and Undo reverses an applied plan.
+_Avoid_: Suggestion
+
+**Time block**:
+An event made for a todo by dropping it on a time in the calendar, linked to that todo.

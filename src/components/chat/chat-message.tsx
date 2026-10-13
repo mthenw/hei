@@ -24,6 +24,7 @@ import {
 } from "@/components/ai-elements/tool";
 import type { AssistantPart, ChatMessage, ToolPart } from "@/lib/chat-stream";
 import { citations } from "@/lib/citations";
+import { CalendarToolView, isCalendarTool } from "./calendar-tool";
 import { isPlacesTool, PlacesToolView } from "./places-tool";
 import { CitationLink, CitationsProvider, SourceChips } from "./sources";
 import { isTodoTool, TodoToolView } from "./todo-tool";
@@ -180,6 +181,7 @@ function AssistantPartView({
       if (isWebTool(part)) return <WebToolView part={part} />;
       if (isPlacesTool(part)) return <PlacesToolView part={part} />;
       if (isTodoTool(part)) return <TodoToolView part={part} />;
+      if (isCalendarTool(part)) return <CalendarToolView part={part} />;
       return <ToolCallView part={part} />;
   }
 }

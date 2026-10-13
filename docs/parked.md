@@ -2,24 +2,13 @@
 
 Work deliberately left out of [v1](./v1-spec.md). Each section records where the thinking already leans and the questions to settle before building it. Grill each one before its version starts.
 
-## v2 — Calendar
+## Calendar — built
 
-**Leaning**
-- Reference product: [time.fyi](https://time.fyi/) — day/week/month grid, keys 2–9 set day count, red now-line, pastel event chips with a 3px saturated left bar (blue `#3b7be8/#dfe9fb`, green `#2e9b5f/#dff2e6`, purple `#7a5ae0/#ebe4fb`, coral `#e8604c/#fde3dd`, amber `#d98b1a/#fbecd2`).
-- "Talk to it": a ⌘I quick-ask bar over the calendar. Hei answers with a **plan card** ("Move Design review to Fri 3:00 PM · Hold 25 min travel") with Approve / Not now; nothing changes until approved; a toast offers Undo. Full chats can also use calendar tools.
-- Connect each provider directly — no unified API (Nylas needs your own Google OAuth app anyway; Cronofy starts at $819/month):
-  - **Google** — own OAuth client set to "In production", unverified. Personal-use apps under 100 users are exempt from verification; this avoids the 7-day refresh-token expiry of "Testing" mode.
-  - **Microsoft 365 / Outlook** — own Entra app (needs a free Azure tenant), "any org + personal accounts", delegated `Calendars.ReadWrite` + `offline_access`. Refresh tokens last 90 days, rolling. Register the redirect as Web, not SPA (SPA tokens last 24h).
-  - **iCloud, Fastmail, other CalDAV** — `tsdav` with app-specific passwords; parse with `ical.js`/`node-ical`.
-  - **Fallback** — read-only ICS secret URLs for calendars where OAuth is blocked (e.g. locked-down work accounts).
-- Sync by polling every 1–5 min with each provider's change tracking (Google `syncToken`, Graph delta, CalDAV `sync-collection`). Push webhooks need public HTTPS, which the NAS won't have.
-
-**Open questions**
-- Which calendars first, and which need write access vs read-only?
-- Do all calendar changes need plan-card approval, or can low-risk ones (e.g. adding a private hold) apply directly?
-- Cache events in the app DB or read through on demand?
-- Which time.fyi features matter: travel mode, extra time zones, person overlay (P), cross-calendar busy-blocking, booking links?
-- Default calendar for new events; colour per calendar.
+See [calendar-spec.md](./calendar-spec.md). Still open:
+- Microsoft 365 / Outlook (own Entra app) and iCloud / CalDAV (`tsdav`, app-specific passwords).
+- time.fyi's extras: travel mode, extra time zones, the person overlay, busy-blocking across calendars, booking links.
+- Low-risk changes (private holds) applying without a plan card.
+- Push notifications for upcoming events; Google push channels need public HTTPS.
 
 ## Todos and hand-off — built
 

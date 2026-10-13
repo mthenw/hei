@@ -128,3 +128,13 @@
   --gmp-mat-color-neutral-container: var(--muted);
   --gmp-thumbnail-border-radius: var(--radius-md);
 }
+
+/* Calendar colours (time.fyi's palette): a saturated bar, and a tint of it behind the event. */
+:root {
+  --cal-blue: #3b7be8;
+  --cal-green: #2e9b5f;
+  --cal-purple: #7a5ae0;
+  --cal-coral: #e8604c;
+  --cal-amber: #d98b1a;
+  --cal-now: #ef4444;
+}

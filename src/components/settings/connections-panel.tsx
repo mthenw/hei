@@ -30,6 +30,7 @@ import {
   getConnections,
   startChatGPTSignIn,
 } from "@/lib/chat-api";
+import { CalendarsCard } from "./calendars-card";
 
 const POLL_MS = 1500;
 
@@ -87,7 +88,8 @@ export function ConnectionsPanel() {
       <header className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold tracking-tight">Connections</h1>
         <p className="text-sm text-muted-foreground">
-          The accounts and keys Hei uses to reach models and the web.
+          The accounts and keys Hei uses to reach models, the web and your
+          calendars.
         </p>
       </header>
 
@@ -107,6 +109,7 @@ export function ConnectionsPanel() {
         onDisconnect={() => run(disconnectChatGPT)}
       />
       <ClaudeCard status={status} />
+      <CalendarsCard />
       <KeysCard status={status} />
     </div>
   );

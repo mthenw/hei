@@ -1,4 +1,5 @@
 import { ChatNotFound, ModelUnavailable, NothingToRegenerate } from "@/agent";
+import { CalendarNotFound, InvalidCalendar } from "@/calendar/calendars";
 import { InvalidTitle } from "@/chats";
 import { SignInError } from "@/connections/connections";
 import { CredentialsUnavailable } from "@/connections/credential-store";
@@ -19,11 +20,17 @@ export async function respond(
 }
 
 function statusOf(error: unknown): number | undefined {
-  if (ChatNotFound.is(error) || TodoNotFound.is(error)) return 404;
+  if (
+    ChatNotFound.is(error) ||
+    TodoNotFound.is(error) ||
+    CalendarNotFound.is(error)
+  )
+    return 404;
   if (
     InvalidTitle.is(error) ||
     InvalidProfile.is(error) ||
     InvalidTodo.is(error) ||
+    InvalidCalendar.is(error) ||
     ModelUnavailable.is(error) ||
     SignInError.is(error)
   )

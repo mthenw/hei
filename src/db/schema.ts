@@ -1,4 +1,10 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  sqliteTable,
+  text,
+  unique,
+} from "drizzle-orm/sqlite-core";
 
 /** A Chat in the sidebar. Its id is the id of the pi-durable conversation behind it. */
 export const chats = sqliteTable("chats", {
@@ -86,3 +92,105 @@ export const todos = sqliteTable("todos", {
 });
 
 export type TodoRow = typeof todos.$inferSelect;
+
+/** A connected calendar account: a Google sign-in, or an ICS link. */
+export const calendarAccounts = sqliteTable("calendar_accounts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  provider: text("provider", { enum: ["google", "ics"] }).notNull(),
+  /** The Google account's address, or the name given to an ICS link. */
+  name: text("name").notNull(),
+  /** Sealed with HEI_SECRET: Google's tokens as JSON, or the ICS address. */
+  secret: text("secret").notNull(),
+  /** Why the last sync failed; null when it worked. */
+  error: text("error"),
+  syncedAt: integer("synced_at", { mode: "timestamp_ms" }),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export type CalendarAccountRow = typeof calendarAccounts.$inferSelect;
+
+/** One calendar of an account, as Hei shows it. */
+export const calendars = sqliteTable(
+  "calendars",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    accountId: integer("account_id")
+      .notNull()
+      .references(() => calendarAccounts.id, { onDelete: "cascade" }),
+    /** The provider's id for it: Google's calendar id; "ics" for an ICS link. */
+    externalId: text("external_id").notNull(),
+    name: text("name").notNull(),
+    color: text("color", {
+      enum: ["blue", "green", "purple", "coral", "amber"],
+    }).notNull(),
+    visible: integer("visible", { mode: "boolean" }).notNull().default(true),
+    /** Hei may change its events (Google calendars the account can edit). */
+    writable: integer("writable", { mode: "boolean" }).notNull(),
+    /** Where new events go. */
+    isDefault: integer("is_default", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    /** Google's sync token; null until the first full sync. */
+    syncToken: text("sync_token"),
+  },
+  (table) => [unique().on(table.accountId, table.externalId)],
+);
+
+export type CalendarRow = typeof calendars.$inferSelect;
+
+/** An event occurrence, synced from its calendar. Repeating events are stored as their single occurrences. */
+export const calendarEvents = sqliteTable(
+  "calendar_events",
+  {
+    // Hei's id: what Hei's tools call the event.
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    calendarId: integer("calendar_id")
+      .notNull()
+      .references(() => calendars.id, { onDelete: "cascade" }),
+    /** The provider's id for this occurrence. */
+    externalId: text("external_id").notNull(),
+    title: text("title").notNull(),
+    location: text("location"),
+    notes: text("notes"),
+    allDay: integer("all_day", { mode: "boolean" }).notNull(),
+    /** An instant ("2026-10-13T09:00:00.000Z"), or a date for an all-day event ("2026-10-13"; the end is exclusive). */
+    start: text("start").notNull(),
+    end: text("end").notNull(),
+    /** The same as instants, for range queries; all-day dates count from midnight UTC. */
+    startMs: integer("start_ms").notNull(),
+    endMs: integer("end_ms").notNull(),
+    /** The event in the provider's own app. */
+    url: text("url"),
+    /** The todo this event blocks time for, when it was made from one. */
+    todoId: integer("todo_id"),
+  },
+  (table) => [
+    unique().on(table.calendarId, table.externalId),
+    index("calendar_events_range").on(table.startMs, table.endMs),
+  ],
+);
+
+export type CalendarEventRow = typeof calendarEvents.$inferSelect;
+
+/**
+ * Calendar changes Hei proposed, shown as a plan card. Nothing changes until the user approves; once applied, the plan
+ * keeps what it takes to undo it.
+ */
+export const calendarPlans = sqliteTable("calendar_plans", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** The chat that proposed it. */
+  chatId: integer("chat_id"),
+  summary: text("summary").notNull(),
+  /** The proposed changes, with what they change as it was when proposed (JSON). */
+  changes: text("changes").notNull(),
+  status: text("status", {
+    enum: ["pending", "applied", "dismissed", "undone", "failed"],
+  }).notNull(),
+  /** What applying did, for Undo (JSON). */
+  applied: text("applied"),
+  error: text("error"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+});
+
+export type CalendarPlanRow = typeof calendarPlans.$inferSelect;

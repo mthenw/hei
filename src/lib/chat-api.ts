@@ -1,6 +1,14 @@
 import type { ModelRef } from "@earendil-works/pi-durable";
 import { nanoid } from "nanoid";
 import type { ModelChoice } from "@/agent/model-catalog";
+import type {
+  AccountSummary,
+  CalendarColor,
+  CalendarEvent,
+  CalendarOverview,
+  CalendarSummary,
+} from "@/calendar/calendars";
+import type { PlanView } from "@/calendar/plans";
 import type { ConnectionStatus } from "@/connections/connections";
 import type { ProfileChange, ProfileData } from "@/profile/profile";
 import type { NewTodo, Todo, TodoChange } from "@/todos/todos";
@@ -104,6 +112,76 @@ export async function handOffTodo(id: number): Promise<Todo> {
 
 export async function stopTodoAgent(id: number) {
   await post(`/api/todos/${id}/stop-agent`);
+}
+
+export async function getCalendarOverview(): Promise<CalendarOverview> {
+  return (await request("GET", "/api/calendar")).json();
+}
+
+export async function getCalendarEvents(
+  from: number,
+  to: number,
+): Promise<CalendarEvent[]> {
+  const response = await request(
+    "GET",
+    `/api/calendar/events?from=${from}&to=${to}`,
+  );
+  return (await response.json()).events;
+}
+
+export async function addIcsCalendar(
+  name: string,
+  url: string,
+): Promise<AccountSummary> {
+  return (await post("/api/calendar/accounts/ics", { name, url }))
+    .json()
+    .then((body) => body.account);
+}
+
+export async function removeCalendarAccount(id: number) {
+  await request("DELETE", `/api/calendar/accounts/${id}`);
+}
+
+export async function updateCalendar(
+  id: number,
+  change: { visible?: boolean; color?: CalendarColor; isDefault?: boolean },
+): Promise<CalendarSummary> {
+  return (await request("PATCH", `/api/calendar/calendars/${id}`, change))
+    .json()
+    .then((body) => body.calendar);
+}
+
+export async function getCalendarPlan(id: number): Promise<PlanView> {
+  return (await request("GET", `/api/calendar/plans/${id}`))
+    .json()
+    .then((body) => body.plan);
+}
+
+export async function decideCalendarPlan(
+  id: number,
+  decision: "approve" | "dismiss" | "undo",
+): Promise<PlanView> {
+  return (await post(`/api/calendar/plans/${id}/${decision}`))
+    .json()
+    .then((body) => body.plan);
+}
+
+export async function createTimeBlock(block: {
+  todoId: number;
+  start: string;
+  end: string;
+}): Promise<CalendarEvent> {
+  return (await post("/api/calendar/blocks", block))
+    .json()
+    .then((body) => body.event);
+}
+
+export async function removeTimeBlock(eventId: number) {
+  await request("DELETE", `/api/calendar/blocks/${eventId}`);
+}
+
+export async function syncCalendars() {
+  await post("/api/calendar/sync");
 }
 
 export async function getMapsConfig(): Promise<MapsConfig> {

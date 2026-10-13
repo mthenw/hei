@@ -1,6 +1,6 @@
 # Hei
 
-A single-user personal assistant: chat with ChatGPT or Claude, with web search, places and a profile it keeps in mind, and a todo list whose items Hei can hand to background agents. Built on Next.js and [pi-durable](https://github.com/earendil-works/pi/tree/main/packages/durable). The calendar comes later ([docs/parked.md](docs/parked.md)).
+A single-user personal assistant: chat with ChatGPT or Claude, with web search, places and a profile it keeps in mind; a calendar of your Google and ICS calendars that Hei plans with (changes only after you approve); and a todo list whose items Hei can hand to background agents. Built on Next.js and [pi-durable](https://github.com/earendil-works/pi/tree/main/packages/durable).
 
 ## Setup
 
@@ -17,6 +17,7 @@ Fill in `.env`:
 - `ANTHROPIC_API_KEY` — Claude, through a pay-as-you-go API key.
 - `JINA_API_KEY` — web search and reading pages.
 - `GOOGLE_MAPS_API_KEY` and `GOOGLE_MAPS_BROWSER_KEY` — finding places, and showing them on a map (see `.env.example` for how to restrict each).
+- `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` — connecting Google Calendar (see the calendar spec's Setup). ICS links need nothing.
 
 All are optional: without any, Hei offers only its scripted dev model.
 
@@ -45,5 +46,6 @@ bun run test:e2e
 
 - [docs/v1-spec.md](docs/v1-spec.md) — what v1 does and how it was verified.
 - [docs/todos-spec.md](docs/todos-spec.md) — todos, and handing them to agents.
+- [docs/calendar-spec.md](docs/calendar-spec.md) — calendars, and planning with Hei.
 - [CONTEXT.md](CONTEXT.md) — the words Hei uses.
 - [docs/adr/](docs/adr/) — why it is built this way.

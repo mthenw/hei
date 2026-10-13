@@ -48,7 +48,10 @@ export default defineConfig({
       JINA_API_KEY: "",
       GOOGLE_MAPS_API_KEY: "",
       GOOGLE_MAPS_BROWSER_KEY: "",
-      HEI_SECRET: "",
+      // Calendar accounts are stored sealed; a throwaway secret for the throwaway data.
+      HEI_SECRET: "end-to-end tests only, not a real secret",
+      GOOGLE_OAUTH_CLIENT_ID: "",
+      GOOGLE_OAUTH_CLIENT_SECRET: "",
     },
   },
 });

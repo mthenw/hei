@@ -15,6 +15,9 @@ import { placesExtension } from "@/agent/places/tools";
 import { ProviderPauses } from "@/agent/provider-pauses";
 import { Jina } from "@/agent/web/jina";
 import { webExtension } from "@/agent/web/tools";
+import { Calendars } from "@/calendar/calendars";
+import { CalendarPlans } from "@/calendar/plans";
+import { calendarExtension } from "@/calendar/tools";
 import { Chats } from "@/chats/chats";
 import { Connections } from "@/connections/connections";
 import { DatabaseCredentialStore } from "@/connections/credential-store";
@@ -36,6 +39,8 @@ export type Hei = {
   profile: Profile;
   todos: Todos;
   handOffs: HandOffs;
+  calendars: Calendars;
+  calendarPlans: CalendarPlans;
   maps: MapsConfig;
 };
 
@@ -71,6 +76,19 @@ async function openHei(): Promise<Hei> {
   const pauses = await ProviderPauses.open(db);
   const profile = await Profile.open(db);
   const todos = new Todos(db, { timeZone: () => profile.get().timeZone });
+  const googleClientId = envValue("GOOGLE_OAUTH_CLIENT_ID");
+  const googleClientSecret = envValue("GOOGLE_OAUTH_CLIENT_SECRET");
+  const calendars = new Calendars(db, {
+    box,
+    timeZone: () => profile.get().timeZone,
+    google:
+      googleClientId && googleClientSecret
+        ? { clientId: googleClientId, clientSecret: googleClientSecret }
+        : undefined,
+  });
+  calendars.start();
+  const timeZone = () => profile.get().timeZone;
+  const calendarPlans = new CalendarPlans(db, calendars, { timeZone });
   const catalog = new ModelCatalog({
     models,
     pauses,
@@ -93,6 +111,7 @@ async function openHei(): Promise<Hei> {
     models,
     catalog,
     extensions: [
+      calendarExtension(calendars, calendarPlans, timeZone),
       todosExtension(todos, {
         handOff: async (todoId) =>
           (await handOffsReady.promise).handOff(todoId),
@@ -114,6 +133,8 @@ async function openHei(): Promise<Hei> {
     profile,
     todos,
     handOffs,
+    calendars,
+    calendarPlans,
     chats,
     connections: new Connections({
       models,
