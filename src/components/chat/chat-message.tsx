@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Message,
   MessageContent,
@@ -19,6 +20,12 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import type { AssistantPart, ChatMessage, ToolPart } from "@/lib/chat-stream";
+import { citations } from "@/lib/citations";
+import { CitationLink, CitationsProvider, SourceChips } from "./sources";
+import { isWebTool, WebToolView } from "./web-tool";
+
+// Stable, so memoised markdown blocks aren't re-rendered for a new object; the links read their numbers from context.
+const markdownComponents = { a: CitationLink };
 
 export function ChatMessageView({
   message,
@@ -38,6 +45,27 @@ export function ChatMessageView({
     );
   }
 
+  return <AssistantMessageView message={message} switchedTo={switchedTo} />;
+}
+
+function AssistantMessageView({
+  message,
+  switchedTo,
+}: {
+  message: Extract<ChatMessage, { role: "assistant" }>;
+  switchedTo?: string;
+}) {
+  const cites = useMemo(
+    () =>
+      citations(
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+        message.sources,
+      ),
+    [message.parts, message.sources],
+  );
+
   return (
     <Message from="assistant">
       {switchedTo && (
@@ -47,14 +75,16 @@ export function ChatMessageView({
         </p>
       )}
       <MessageContent>
-        {message.parts.map((part, index) => (
-          <AssistantPartView
-            // biome-ignore lint/suspicious/noArrayIndexKey: parts only append within a reply, so position is stable, while entry ids change when the streamed response commits and would remount it.
-            key={index}
-            part={part}
-            streaming={message.streaming}
-          />
-        ))}
+        <CitationsProvider citations={cites}>
+          {message.parts.map((part, index) => (
+            <AssistantPartView
+              // biome-ignore lint/suspicious/noArrayIndexKey: parts only append within a reply, so position is stable, while entry ids change when the streamed response commits and would remount it.
+              key={index}
+              part={part}
+              streaming={message.streaming}
+            />
+          ))}
+        </CitationsProvider>
         {message.waiting && <Shimmer>Thinking…</Shimmer>}
         {message.error && (
           <p className="text-sm text-destructive">{message.error}</p>
@@ -62,6 +92,7 @@ export function ChatMessageView({
         {message.stopped && (
           <p className="text-xs text-muted-foreground">Stopped</p>
         )}
+        <SourceChips cited={cites.cited} />
       </MessageContent>
     </Message>
   );
@@ -77,7 +108,12 @@ function AssistantPartView({
   switch (part.type) {
     case "text":
       return (
-        <MessageResponse isAnimating={streaming}>{part.text}</MessageResponse>
+        <MessageResponse
+          isAnimating={streaming}
+          components={markdownComponents}
+        >
+          {part.text}
+        </MessageResponse>
       );
     case "reasoning":
       return (
@@ -87,7 +123,11 @@ function AssistantPartView({
         </Reasoning>
       );
     case "tool":
-      return <ToolCallView part={part} />;
+      return isWebTool(part) ? (
+        <WebToolView part={part} />
+      ) : (
+        <ToolCallView part={part} />
+      );
   }
 }
 

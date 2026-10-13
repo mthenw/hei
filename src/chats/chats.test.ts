@@ -113,6 +113,26 @@ describe("Chats", () => {
     expect((await titled.list())[0]?.title).toBe("About: dinner plans");
   });
 
+  it("lets a later answer write the title when the first one couldn't", async () => {
+    const titles = [undefined, "Second try"];
+    const titled = new Chats(agent, await openAppDatabase(":memory:"), {
+      writeTitle: async () => titles.shift(),
+    });
+    const id = await titled.start(message("hi"));
+    await titled.settled(id);
+    expect((await titled.list())[0]?.title).toBe("hi");
+
+    await titled.send(id, message("plan dinner"));
+    await titled.settled(id);
+    expect((await titled.list())[0]?.title).toBe("Second try");
+
+    // Once written, later answers leave it alone.
+    titles.push("Third");
+    await titled.send(id, message("more"));
+    await titled.settled(id);
+    expect((await titled.list())[0]?.title).toBe("Second try");
+  });
+
   it("keeps a title the user set before the written one arrives", async () => {
     let release = () => {};
     const gate = new Promise<void>((resolve) => {

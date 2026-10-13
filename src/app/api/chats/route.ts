@@ -1,4 +1,4 @@
-import { getHei } from "@/server/hei";
+import { heiForRequest } from "@/app/api/hei";
 import { respond } from "../respond";
 import { readBody, readMessage, readModel } from "./request";
 
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     if (message instanceof Response) return message;
     const model = readModel(body.model);
     if (model instanceof Response) return model;
-    const { chats } = await getHei();
+    const { chats } = await heiForRequest();
     const chatId = await chats.start(message, model);
     return Response.json({ chatId }, { status: 201 });
   });

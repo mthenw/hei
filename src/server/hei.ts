@@ -11,12 +11,14 @@ import { Agent } from "@/agent/agent";
 import { createDevModel } from "@/agent/dev-model";
 import { ModelCatalog } from "@/agent/model-catalog";
 import { ProviderPauses } from "@/agent/provider-pauses";
+import { Jina } from "@/agent/web/jina";
+import { webExtension } from "@/agent/web/tools";
 import { Chats } from "@/chats/chats";
 import { Connections } from "@/connections/connections";
 import { DatabaseCredentialStore } from "@/connections/credential-store";
 import { openAppDatabase } from "@/db/database";
 import { installationId } from "@/db/settings";
-import { dataDir } from "@/lib/data-dir";
+import { claimDataDir, dataDir } from "@/lib/data-dir";
 import { SecretBox } from "@/lib/secret-box";
 
 /** Everything the server runs on, built once per process. */
@@ -43,6 +45,8 @@ export function getHei(): Promise<Hei> {
 
 async function openHei(): Promise<Hei> {
   const dir = await dataDir();
+  // One process per data directory: a second one (another server, a build, a script) fails here, not in the storage.
+  await claimDataDir(dir);
   const db = await openAppDatabase(path.join(dir, "app.sqlite"));
   const box = secretBox(process.env.HEI_SECRET);
 
@@ -62,10 +66,13 @@ async function openHei(): Promise<Hei> {
       process.env.HEI_DEV_MODEL === "1",
   });
 
+  // Web access needs a Jina key; without one, chats are offered no web tools rather than tools that fail.
+  const jinaKey = process.env.JINA_API_KEY?.trim();
   const agent = await Agent.open({
     storage: await openNodeSqliteStorage(path.join(dir, "agent.sqlite")),
     models,
     catalog,
+    extensions: jinaKey ? [webExtension(new Jina({ apiKey: jinaKey }))] : [],
   });
   return {
     agent,

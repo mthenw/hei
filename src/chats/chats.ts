@@ -123,8 +123,15 @@ export class Chats {
   }
 
   async send(chatId: ChatId, message: Message): Promise<void> {
-    await this.row(chatId);
-    this.track(chatId, (await this.submit(chatId, message)).answer);
+    const row = await this.row(chatId);
+    const { answer } = await this.submit(chatId, message);
+    // A chat whose first answer never came, or couldn't be titled, gets its title from a later exchange.
+    this.track(
+      chatId,
+      row.titleByUser || row.titleWritten
+        ? answer
+        : answer.then((text) => this.retitle(chatId, message.content, text)),
+    );
     await this.db
       .update(chats)
       .set({ updatedAt: new Date(this.now()) })
@@ -214,16 +221,16 @@ export class Chats {
 
   private async retitle(
     chatId: ChatId,
-    firstMessage: string,
+    message: string,
     answer: string | undefined,
   ) {
     try {
       if (answer === undefined) return;
-      const title = await this.writeTitle(firstMessage, answer);
+      const title = await this.writeTitle(message, answer);
       if (title === undefined) return;
       await this.db
         .update(chats)
-        .set({ title })
+        .set({ title, titleWritten: true })
         .where(and(eq(chats.id, chatId), eq(chats.titleByUser, false)));
       this.changed();
     } catch (error) {

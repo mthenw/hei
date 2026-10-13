@@ -51,7 +51,7 @@ Decisions agreed in the grilling session of 2026-10-12. Architecture-shaping cho
 
 ### Profile page
 - **About me** — free text added to every chat's context.
-- **Timezone** — default `Europe/Warsaw`. Current date and time in this zone are injected into every request.
+- **Timezone** — default `Europe/Warsaw`. Today's date in this zone is part of the system prompt (in place since step 6, with the zone fixed); step 7 makes the zone editable and adds the time of day without breaking prompt caching.
 - **Language** — Hei replies in the language of the user's message.
 - **Assistant instructions** — editable persona prompt, separate from About me. Default: brief and direct, answer first, no filler, ask before any action with side effects.
 
@@ -82,10 +82,11 @@ See [ADR 0004](./adr/0004-model-access.md) for why.
 
 ### Web access
 See [ADR 0003](./adr/0003-own-web-tools.md).
-- `web_search` — Jina Search (`s.jina.ai`). Returns up to five results with title, URL and snippet; page content is left out or trimmed so a search doesn't fill the model's context.
-- `web_fetch` — Jina Reader (`r.jina.ai/<url>`), renders JavaScript, returns markdown.
-- Both use `JINA_API_KEY` (search requires it) and sit behind a provider interface so the backing service can be swapped.
-- Both tools are `replay: "safe"` (read-only).
+- `web_search` — Jina Search (`s.jina.ai`) with `X-Respond-With: no-content`: five results with title, URL, date and snippet, about 1,000 Jina tokens each, capped by `X-Token-Budget`. Never ask search for page content: with it, one search cost about 419,000 tokens in testing.
+- `web_fetch` — Jina Reader (`r.jina.ai`), renders JavaScript, returns markdown. Capped at 20,000 Jina tokens per page (Jina refuses larger pages before charging; the model is told the page is too long) and cut to 40,000 characters for the model.
+- Both need `JINA_API_KEY`; without it chats are offered no web tools. They live in a separate `web` extension with their own prompt section, are `replay: "safe"` (read-only), and stop when the reply is stopped.
+- **In the chat**: each search shows as one line ("Searched “…” · 5 results", expandable to the results with site icons); each read as "Read <page title>". While a tool works it shows a spinner instead of "Thinking…".
+- **Citations**: the model cites with markdown links to the exact pages its tools returned. Links to those pages render as numbers in order of first citation, and the cited pages appear as numbered chips (site icon + domain) under the reply. Links to other pages stay ordinary links.
 
 ### Layout and look
 - Icon rail on the left (Chat / Calendar / Todos), each section with its own sidebar. Calendar and Todos are placeholders in v1.

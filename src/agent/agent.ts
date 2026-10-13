@@ -6,6 +6,7 @@ import {
   type ConversationId,
   createRegistry,
   type EntryId,
+  type Extension,
   Harness,
   type ModelRef,
   type Storage,
@@ -72,6 +73,8 @@ export type AgentOptions = {
   storage: Storage;
   models: Models;
   catalog: Catalog;
+  /** Extensions beside Hei's own, such as web access. Every chat uses all of them. */
+  extensions?: Extension[];
 };
 
 // Every Hei call runs to completion on its own; cancellation is per conversation, through stop().
@@ -89,6 +92,8 @@ export class Agent {
   static async open(options: AgentOptions): Promise<Agent> {
     const registry = createRegistry();
     registry.install(HeiExtension);
+    for (const extension of options.extensions ?? [])
+      registry.install(extension);
     const harness = await Harness.open(
       options.storage,
       { models: options.models, registry },

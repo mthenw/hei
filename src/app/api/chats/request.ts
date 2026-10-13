@@ -1,7 +1,7 @@
 import type { ModelRef } from "@earendil-works/pi-durable";
 import type { ChatId, Message } from "@/agent";
+import { heiForRequest } from "@/app/api/hei";
 import type { Chats } from "@/chats";
-import { getHei } from "@/server/hei";
 import { badRequest, readBody, respond } from "../respond";
 
 export { readBody };
@@ -51,5 +51,5 @@ export async function withChat(
   const chatId = Number(id);
   if (!Number.isSafeInteger(chatId) || chatId <= 0)
     return Response.json({ error: "Chat not found." }, { status: 404 });
-  return respond(async () => handle((await getHei()).chats, chatId));
+  return respond(async () => handle((await heiForRequest()).chats, chatId));
 }

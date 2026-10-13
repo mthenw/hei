@@ -156,6 +156,35 @@ describe("waiting for a reply", () => {
     expect(reply).toMatchObject({ waiting: false, streaming: true });
   });
 
+  it("doesn't show Thinking while a tool is working", () => {
+    const call = assistant("", "toolUse").model?.[0] as AssistantMessage;
+    call.content = [
+      { type: "toolCall", id: "call-1", name: "web_fetch", arguments: {} },
+    ];
+    const entry = { ...assistant(""), model: [call] } as EntryRecord;
+
+    const reply = chatMessages({
+      ...emptyChatStream,
+      entries: [user("Hi"), entry],
+      running: true,
+      toolOutput: { "call-1": "" },
+    }).at(-1);
+
+    expect(reply).toMatchObject({ waiting: false, streaming: true });
+  });
+
+  it("holds back a failed attempt's error while the run retries", () => {
+    const failed = assistant("", "error");
+    const reply = chatMessages({
+      ...emptyChatStream,
+      entries: [user("Hi"), failed],
+      running: true,
+    }).at(-1);
+
+    expect(reply).toMatchObject({ role: "assistant", waiting: true });
+    expect(reply).not.toHaveProperty("error", expect.anything());
+  });
+
   it("shows nothing extra once Hei is idle", () => {
     const messages = chatMessages({
       ...emptyChatStream,

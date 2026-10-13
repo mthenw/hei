@@ -237,7 +237,12 @@ export type ToolPart = {
   output?: string;
   /** Result text once it finished. */
   result?: string;
+  /** Structured data the tool returned for the UI, such as web search results. */
+  details?: unknown;
 };
+
+/** A web page a reply drew on, from its web_search results and web_fetch reads. */
+export type Source = { url: string; title: string };
 
 export type AssistantPart =
   | { type: "text"; text: string }
@@ -259,6 +264,8 @@ export type ChatMessage =
       modelChanged: boolean;
       /** Hei switched accounts for this reply because a limit stopped the previous model. */
       failover?: { reason: string };
+      /** Pages the reply's web tools found or read, in the order they came up. */
+      sources: Source[];
       error?: string;
       stopped?: boolean;
     };
@@ -287,6 +294,7 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
         waiting: false,
         modelChanged: false,
         failover: switched,
+        sources: [],
       };
       switched = undefined;
       messages.push(reply);
@@ -368,6 +376,19 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
       }
     }
   }
+
+  // The reply being worked on: while the run goes on, a failed attempt's error is about to be retried, and a working
+  // tool already shows that something is happening.
+  const current = messages.at(-1);
+  if (state.running && current?.role === "assistant") {
+    current.error = undefined;
+    const last = current.parts.at(-1);
+    if (
+      last?.type === "tool" &&
+      (last.status === "running" || last.status === "pending")
+    )
+      current.waiting = false;
+  }
   return messages;
 }
 
@@ -439,6 +460,42 @@ function attachResult(
     .filter((block) => block.type === "text")
     .map((block) => block.text)
     .join("\n");
+  part.details = result.details;
+  if (reply !== undefined && !result.isError)
+    for (const source of sourcesOf(result.details))
+      if (!reply.sources.some((known) => sameUrl(known.url, source.url)))
+        reply.sources.push(source);
+}
+
+/** The pages a web tool's details name. */
+function sourcesOf(details: unknown): Source[] {
+  if (typeof details !== "object" || details === null) return [];
+  const value = details as {
+    kind?: string;
+    url?: string;
+    title?: string;
+    results?: { url: string; title: string }[];
+  };
+  if (value.kind === "page" && value.url)
+    return [{ url: value.url, title: value.title ?? value.url }];
+  if (value.kind === "search" && Array.isArray(value.results))
+    return value.results.map(({ url, title }) => ({ url, title }));
+  return [];
+}
+
+/** Whether two URLs name the same page, ignoring a fragment and a trailing slash. */
+export function sameUrl(a: string, b: string): boolean {
+  return normalizeUrl(a) === normalizeUrl(b);
+}
+
+export function normalizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return url;
+  }
 }
 
 function userText(message: UserMessage): string {

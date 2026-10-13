@@ -1,0 +1,1 @@
+ALTER TABLE `chats` ADD `title_written` integer DEFAULT false NOT NULL;

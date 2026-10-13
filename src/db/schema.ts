@@ -8,6 +8,10 @@ export const chats = sqliteTable("chats", {
   titleByUser: integer("title_by_user", { mode: "boolean" })
     .notNull()
     .default(false),
+  /** A model has written the title; until then the next answer gets to write one. */
+  titleWritten: integer("title_written", { mode: "boolean" })
+    .notNull()
+    .default(false),
   /** Request id of the message that started the chat; a retried start finds this chat instead of making another. */
   startRequestId: text("start_request_id").notNull().unique(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
