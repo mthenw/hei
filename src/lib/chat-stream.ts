@@ -8,6 +8,7 @@ import type {
   AgentEvent,
   EntryRecord,
   MessageChange,
+  ModelRef,
   SnapshotEvent,
 } from "@earendil-works/pi-durable";
 
@@ -28,6 +29,8 @@ export type ChatStreamState = {
   retry: { attempt: number; at: number; error: string } | undefined;
   /** Why the last message went unanswered, unless the user stopped it. */
   failure: string | undefined;
+  /** The model the chat runs on, as pi-durable's agent settings name it. */
+  model: ModelRef | undefined;
 };
 
 export const emptyChatStream: ChatStreamState = {
@@ -38,6 +41,7 @@ export const emptyChatStream: ChatStreamState = {
   queued: 0,
   retry: undefined,
   failure: undefined,
+  model: undefined,
 };
 
 export function applyEvents(
@@ -127,6 +131,9 @@ function applyEvent(state: Mutable<ChatStreamState>, event: AgentEvent) {
         state.failure = describeFailure(record.reason, record.detail);
       return;
     }
+    case "agent_changed":
+      state.model = event.agent.model;
+      return;
     case "task_failed":
       state.failure = event.message;
       return;
@@ -149,6 +156,7 @@ function fromSnapshot(snapshot: SnapshotEvent): ChatStreamState {
       ...generation.retry,
     },
     failure: undefined,
+    model: snapshot.agent.model,
   };
 }
 
@@ -242,8 +250,12 @@ export type ChatMessage =
       key: string;
       parts: AssistantPart[];
       /** The model that produced the latest response in this reply. */
-      model?: string;
+      model?: ModelRef;
       streaming: boolean;
+      /** Hei is working on this reply but the model has nothing visible to show yet, e.g. while reasoning privately. */
+      waiting: boolean;
+      /** This reply comes from a different model than the reply before it. */
+      modelChanged: boolean;
       error?: string;
       stopped?: boolean;
     };
@@ -261,7 +273,14 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
 
   const currentReply = (key: string) => {
     if (reply === undefined) {
-      reply = { role: "assistant", key, parts: [], streaming: false };
+      reply = {
+        role: "assistant",
+        key,
+        parts: [],
+        streaming: false,
+        waiting: false,
+        modelChanged: false,
+      };
       messages.push(reply);
     }
     return reply;
@@ -286,14 +305,27 @@ export function chatMessages(state: ChatStreamState): ChatMessage[] {
 
   if (state.partial !== undefined) {
     const current = currentReply("partial");
-    addResponse(current, state.partial, true, marks);
+    const shown = addResponse(current, state.partial, true, marks);
     current.streaming = true;
-  } else if (state.running && reply !== undefined) {
-    reply.streaming = true;
+    current.waiting = shown === 0;
+  } else if (state.running) {
+    // Before the model's first output, and between tool rounds, there is no response in progress. Show the reply as
+    // waiting anyway, so the work is visible.
+    const current = currentReply("pending");
+    current.streaming = true;
+    current.waiting = true;
   }
 
+  let previousModel: ModelRef | undefined;
   for (const message of messages) {
     if (message.role !== "assistant") continue;
+    if (message.model !== undefined) {
+      message.modelChanged =
+        previousModel !== undefined &&
+        (previousModel.provider !== message.model.provider ||
+          previousModel.modelId !== message.model.modelId);
+      previousModel = message.model;
+    }
     for (const part of message.parts) {
       if (part.type !== "tool" || part.result !== undefined) continue;
       const output = state.toolOutput[part.callId];
@@ -314,12 +346,13 @@ type ResponseMarks = WeakMap<
   { start: number; excluded: boolean }
 >;
 
+/** Add a model response to a reply; returns how many visible parts it contributed. */
 function addResponse(
   reply: AssistantChatMessage,
   message: AssistantMessage,
   streaming: boolean,
   marks: ResponseMarks,
-) {
+): number {
   // pi-durable leaves aborted and failed responses out of the model's context, so a later response in the same run
   // (a retry, or the run resumed after a restart) redoes their work. Show only the newer one.
   const previous = marks.get(reply);
@@ -329,7 +362,7 @@ function addResponse(
     excluded:
       message.stopReason === "aborted" || message.stopReason === "error",
   });
-  reply.model = message.model;
+  reply.model = { provider: message.provider, modelId: message.model };
   // A later response supersedes an earlier failed attempt.
   reply.error =
     message.stopReason === "error"
@@ -358,6 +391,7 @@ function addResponse(
       });
     }
   });
+  return reply.parts.length - (marks.get(reply)?.start ?? 0);
 }
 
 function attachResult(

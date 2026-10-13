@@ -1,12 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createModels } from "@earendil-works/pi-ai";
-import {
-  type AgentEvent,
-  MemoryStorage,
-  type Storage,
-} from "@earendil-works/pi-durable";
+import type { AgentEvent, Storage } from "@earendil-works/pi-durable";
 import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -16,8 +11,8 @@ import {
   chatMessages,
   emptyChatStream,
 } from "@/lib/chat-stream";
-import { Agent, type ChatId } from "./agent";
-import { createDevModel, DEV_MODEL } from "./dev-model";
+import type { Agent, ChatId } from "./agent";
+import { openTestAgent } from "./testing";
 
 const openAgents: Agent[] = [];
 
@@ -28,15 +23,7 @@ afterEach(async () => {
 async function openAgent(
   options: { storage?: Storage; tokensPerSecond?: number } = {},
 ) {
-  const models = createModels();
-  models.setProvider(
-    createDevModel({ tokensPerSecond: options.tokensPerSecond }).provider,
-  );
-  const agent = await Agent.open({
-    storage: options.storage ?? new MemoryStorage(),
-    models,
-    defaultModel: DEV_MODEL,
-  });
+  const agent = await openTestAgent(options);
   openAgents.push(agent);
   return agent;
 }
@@ -104,9 +91,10 @@ describe("Agent", () => {
     });
     expect(reply).toMatchObject({
       role: "assistant",
-      model: "echo",
+      model: { provider: "hei-dev", modelId: "echo" },
       streaming: false,
     });
+    expect(state.model).toEqual({ provider: "hei-dev", modelId: "echo" });
     expect(reply?.role === "assistant" && reply.parts[0]).toMatchObject({
       type: "reasoning",
       streaming: false,

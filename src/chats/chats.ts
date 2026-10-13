@@ -1,10 +1,21 @@
-import type { AgentEventStream } from "@earendil-works/pi-durable";
-import { desc, eq } from "drizzle-orm";
-import { type Agent, type ChatId, ChatNotFound, type Message } from "@/agent";
+import type { AgentEventStream, ModelRef } from "@earendil-works/pi-durable";
+import { and, desc, eq } from "drizzle-orm";
+import {
+  type Agent,
+  type ChatId,
+  ChatNotFound,
+  type Message,
+  type Sent,
+} from "@/agent";
 import type { AppDatabase } from "@/db/database";
 import { type ChatRow, chats } from "@/db/schema";
 import { HeiError, isHeiError } from "@/lib/errors";
-import { titleFromMessage } from "./title";
+import {
+  cleanTitle,
+  TITLE_INSTRUCTIONS,
+  titleFromMessage,
+  titleInput,
+} from "./title";
 
 export type ChatSummary = {
   id: ChatId;
@@ -14,6 +25,17 @@ export type ChatSummary = {
 };
 
 const MAX_TITLE_LENGTH = 200;
+
+/** Writes a title from a chat's opening exchange; resolves to nothing to keep the provisional one. */
+export type WriteTitle = (
+  firstMessage: string,
+  answer: string,
+) => Promise<string | undefined>;
+
+export type ChatsOptions = {
+  now?: () => number;
+  writeTitle?: WriteTitle;
+};
 
 export class InvalidTitle extends HeiError<"InvalidTitle"> {
   constructor(message: string) {
@@ -32,14 +54,32 @@ export class InvalidTitle extends HeiError<"InvalidTitle"> {
 export class Chats {
   private readonly listeners = new Set<() => void>();
 
+  private readonly titling = new Map<ChatId, Promise<void>>();
+  private readonly now: () => number;
+  private readonly writeTitle: WriteTitle;
+
   constructor(
     private readonly agent: Agent,
     private readonly db: AppDatabase,
-    private readonly now: () => number = Date.now,
-  ) {}
+    options: ChatsOptions = {},
+  ) {
+    this.now = options.now ?? Date.now;
+    this.writeTitle =
+      options.writeTitle ??
+      (async (firstMessage, answer) => {
+        const reply = await agent.complete(
+          TITLE_INSTRUCTIONS,
+          titleInput(firstMessage, answer),
+        );
+        return reply && cleanTitle(reply);
+      });
+  }
 
-  /** Start a chat with its first message. Retrying with the same request id returns the same chat. */
-  async start(message: Message): Promise<ChatId> {
+  /**
+   * Start a chat with its first message, on `model` or the default model. Retrying with the same request id returns the
+   * same chat. Once Hei answers, a model writes the title, unless the user has renamed the chat by then.
+   */
+  async start(message: Message, model?: ModelRef): Promise<ChatId> {
     const existing = await this.db
       .select({ id: chats.id })
       .from(chats)
@@ -47,7 +87,7 @@ export class Chats {
       .get();
     if (existing !== undefined) return existing.id;
 
-    const id = await this.agent.createChat();
+    const id = await this.agent.createChat(model);
     const now = new Date(this.now());
     await this.db.insert(chats).values({
       id,
@@ -56,9 +96,21 @@ export class Chats {
       createdAt: now,
       updatedAt: now,
     });
-    await this.agent.send(id, message);
+    const sent = await this.agent.send(id, message);
     this.changed();
+    this.titling.set(id, this.retitle(id, message.content, sent));
     return id;
+  }
+
+  /** Resolves once the automatic title for a chat started here has been written or given up on. */
+  async titled(chatId: ChatId): Promise<void> {
+    await this.titling.get(chatId);
+  }
+
+  /** Switch the model a chat runs on, from its next request. */
+  async setModel(chatId: ChatId, model: ModelRef): Promise<void> {
+    await this.row(chatId);
+    await this.agent.setModel(chatId, model);
   }
 
   async send(chatId: ChatId, message: Message): Promise<void> {
@@ -119,6 +171,25 @@ export class Chats {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  private async retitle(chatId: ChatId, firstMessage: string, sent: Sent) {
+    try {
+      const answer = await sent.answer();
+      if (answer === undefined) return;
+      const title = await this.writeTitle(firstMessage, answer);
+      if (title === undefined) return;
+      await this.db
+        .update(chats)
+        .set({ title })
+        .where(and(eq(chats.id, chatId), eq(chats.titleByUser, false)));
+      this.changed();
+    } catch (error) {
+      // The provisional title stays; a failed title is not worth failing anything else for.
+      console.warn(`Could not title chat ${chatId}:`, error);
+    } finally {
+      this.titling.delete(chatId);
+    }
   }
 
   private async row(chatId: ChatId): Promise<ChatRow> {

@@ -20,7 +20,14 @@ import {
 } from "@/components/ai-elements/tool";
 import type { AssistantPart, ChatMessage, ToolPart } from "@/lib/chat-stream";
 
-export function ChatMessageView({ message }: { message: ChatMessage }) {
+export function ChatMessageView({
+  message,
+  switchedTo,
+}: {
+  message: ChatMessage;
+  /** Display name of the model, when this reply is the first from a different model than the one before. */
+  switchedTo?: string;
+}) {
   if (message.role === "user") {
     return (
       <Message from="user">
@@ -31,11 +38,14 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
     );
   }
 
-  const waiting = message.streaming && message.parts.length === 0;
   return (
     <Message from="assistant">
+      {switchedTo && (
+        <p className="text-xs text-muted-foreground">
+          Switched to {switchedTo}
+        </p>
+      )}
       <MessageContent>
-        {waiting && <Shimmer>Thinking…</Shimmer>}
         {message.parts.map((part, index) => (
           <AssistantPartView
             // biome-ignore lint/suspicious/noArrayIndexKey: parts only append within a reply, so position is stable, while entry ids change when the streamed response commits and would remount it.
@@ -44,6 +54,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
             streaming={message.streaming}
           />
         ))}
+        {message.waiting && <Shimmer>Thinking…</Shimmer>}
         {message.error && (
           <p className="text-sm text-destructive">{message.error}</p>
         )}
@@ -51,11 +62,6 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
           <p className="text-xs text-muted-foreground">Stopped</p>
         )}
       </MessageContent>
-      {message.model && !message.streaming && (
-        <span className="font-mono text-[11px] text-muted-foreground">
-          {message.model}
-        </span>
-      )}
     </Message>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { titleFromMessage } from "./title";
+import { cleanTitle, titleFromMessage } from "./title";
 
 describe("titleFromMessage", () => {
   it("uses the first non-empty line, with whitespace collapsed", () => {
@@ -30,5 +30,16 @@ describe("titleFromMessage", () => {
 
   it("falls back for a message with no text", () => {
     expect(titleFromMessage("   \n  ")).toBe("New chat");
+  });
+});
+
+describe("cleanTitle", () => {
+  it("strips quotes, a label and trailing punctuation", () => {
+    expect(cleanTitle('Title: "Team dinner venue."')).toBe("Team dinner venue");
+    expect(cleanTitle("**Weekly plan**\nExtra line")).toBe("Weekly plan");
+  });
+
+  it("refuses an empty reply", () => {
+    expect(cleanTitle('  ""  ')).toBeUndefined();
   });
 });

@@ -2,6 +2,7 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { EntryRecord } from "@earendil-works/pi-durable";
 import { describe, expect, it } from "vitest";
 import {
+  applyEvents,
   type ChatStreamState,
   chatMessages,
   emptyChatStream,
@@ -21,13 +22,14 @@ function user(text: string): EntryRecord {
 function assistant(
   text: string,
   stopReason: AssistantMessage["stopReason"] = "stop",
+  model = "test-model",
 ): EntryRecord {
   const message: AssistantMessage = {
     role: "assistant",
     content: [{ type: "text", text }],
     api: "test",
     provider: "test",
-    model: "test-model",
+    model,
     usage: {
       input: 0,
       output: 0,
@@ -80,5 +82,100 @@ describe("chatMessages", () => {
     expect(
       replyTexts([user("Hi"), assistant("Hel", "aborted"), user("Again")]),
     ).toEqual(["user: Hi", "assistant: Hel (stopped)", "user: Again"]);
+  });
+});
+
+describe("model changes", () => {
+  it("marks only the first reply after the model changes", () => {
+    const messages = chatMessages({
+      ...emptyChatStream,
+      entries: [
+        user("One"),
+        assistant("A", "stop", "gpt-6.1-sol"),
+        user("Two"),
+        assistant("B", "stop", "gpt-6.1-sol"),
+        user("Three"),
+        assistant("C", "stop", "claude-sonnet-5-5"),
+        user("Four"),
+        assistant("D", "stop", "claude-sonnet-5-5"),
+      ],
+    });
+
+    expect(
+      messages
+        .filter((message) => message.role === "assistant")
+        .map((message) => message.modelChanged),
+    ).toEqual([false, false, true, false]);
+  });
+});
+
+describe("waiting for a reply", () => {
+  it("shows a reply in progress as soon as Hei starts on a message", () => {
+    const messages = chatMessages({
+      ...emptyChatStream,
+      entries: [user("Hi")],
+      running: true,
+    });
+
+    expect(messages.at(-1)).toMatchObject({
+      role: "assistant",
+      parts: [],
+      streaming: true,
+      waiting: true,
+    });
+  });
+
+  it("keeps waiting while the model's reasoning is hidden", () => {
+    const partial = assistant("").model?.[0] as AssistantMessage;
+    partial.content = [{ type: "thinking", thinking: "" }];
+
+    const reply = chatMessages({
+      ...emptyChatStream,
+      entries: [user("Hi")],
+      running: true,
+      partial,
+    }).at(-1);
+
+    expect(reply).toMatchObject({
+      role: "assistant",
+      waiting: true,
+      parts: [],
+    });
+  });
+
+  it("stops waiting once text streams in", () => {
+    const partial = assistant("Hel").model?.[0] as AssistantMessage;
+
+    const reply = chatMessages({
+      ...emptyChatStream,
+      entries: [user("Hi")],
+      running: true,
+      partial,
+    }).at(-1);
+
+    expect(reply).toMatchObject({ waiting: false, streaming: true });
+  });
+
+  it("shows nothing extra once Hei is idle", () => {
+    const messages = chatMessages({
+      ...emptyChatStream,
+      entries: [user("Hi"), assistant("Hello!")],
+    });
+
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+  });
+});
+
+describe("applyEvents", () => {
+  it("follows the chat's model when it is switched", () => {
+    const model = { provider: "anthropic", modelId: "claude-sonnet-5-5" };
+    const state = applyEvents(emptyChatStream, [
+      { type: "agent_changed", agent: { model } },
+    ]);
+
+    expect(state.model).toEqual(model);
   });
 });

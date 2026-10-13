@@ -56,8 +56,9 @@ Decisions agreed in the grilling session of 2026-10-12. Architecture-shaping cho
 - **Assistant instructions** — editable persona prompt, separate from About me. Default: brief and direct, answer first, no filler, ask before any action with side effects.
 
 ### Connections page
-- **Connect ChatGPT** — runs Sign in with ChatGPT (pi-ai `openai` provider, SIWC). Opens the auth URL and also accepts a pasted redirect URL, so login works when Hei isn't on the same machine as the browser.
-- Shows configured/missing status for env-provided keys (Anthropic, Exa, Jina). Read-only.
+- **Connect ChatGPT** — runs Sign in with ChatGPT (pi-ai `openai` provider, SIWC) on the server. It opens the auth URL in a new tab; pi-ai's callback server on `127.0.0.1:1455` finishes the sign-in when the browser runs on the same machine as Hei, and otherwise the user pastes the address of the page that failed to load. Requires `HEI_SECRET`; the page explains how to set it. One sign-in at a time; cancelling frees the port.
+- **Disconnect** forgets the stored sign-in.
+- Shows whether Claude is configured, and set/missing for `ANTHROPIC_API_KEY`, `JINA_API_KEY` and `HEI_SECRET`. Read-only; values are never sent to the browser.
 
 ### Models and failover
 See [ADR 0004](./adr/0004-model-access.md) for why.
@@ -68,7 +69,8 @@ See [ADR 0004](./adr/0004-model-access.md) for why.
 | Backup | Claude Sonnet 5.5 via `ANTHROPIC_API_KEY` (personal Console org, ~$20/month spend cap) |
 | Side jobs (titles) | Claude Haiku 5.5 → a small GPT model → first message truncated |
 
-- **Model picker** per chat lists Claude models and the GPT models the ChatGPT account allows.
+- **Model picker** in the composer, per chat: Claude Sonnet, Opus and Haiku 5.5 when `ANTHROPIC_API_KEY` is set; GPT-6.1 Sol, GPT-6 Sol, GPT-6 Astra and GPT-6 Luna as far as the ChatGPT account's own model list allows (all four if that list can't be read). New chats start on the first available of GPT-6.1 Sol, Claude Sonnet 5.5, then the dev model. Chats run with medium reasoning effort.
+- **Dev model** — the scripted model is offered in development, and in production only with `HEI_DEV_MODEL=1`.
 - **Failover trigger**: a run settles `unanswered` with a model error matching a limit pattern (`subscription_sharing_usage_limit_exceeded`, `usage_limit`, `rate_limit_error`/429, `credit balance is too low`). Hei switches the chat's model with `conversation.configure()` and resubmits.
 - **Sticky**: a chat stays on the model it switched to until the user changes it.
 - **Paused provider**: Claude after a credit error is skipped until an hourly probe succeeds; ChatGPT after a usage-limit error is skipped for 30 minutes (OpenAI gives no reset time).
@@ -78,9 +80,9 @@ See [ADR 0004](./adr/0004-model-access.md) for why.
 
 ### Web access
 See [ADR 0003](./adr/0003-own-web-tools.md).
-- `web_search` — Exa. Returns results with title, URL, snippet.
+- `web_search` — Jina Search (`s.jina.ai`). Returns up to five results with title, URL and snippet; page content is left out or trimmed so a search doesn't fill the model's context.
 - `web_fetch` — Jina Reader (`r.jina.ai/<url>`), renders JavaScript, returns markdown.
-- Both behind a provider interface so the backing service can be swapped.
+- Both use `JINA_API_KEY` (search requires it) and sit behind a provider interface so the backing service can be swapped.
 - Both tools are `replay: "safe"` (read-only).
 
 ### Layout and look
@@ -109,7 +111,7 @@ See [ADR 0003](./adr/0003-own-web-tools.md).
 - `settings` — install-scoped values, including the stable SIWC device id.
 
 ### Environment
-`ANTHROPIC_API_KEY`, `EXA_API_KEY`, `JINA_API_KEY` (optional; keyless works at 20 req/min), `HEI_SECRET`, `HEI_DATA_DIR` (default `./data`).
+`ANTHROPIC_API_KEY`, `JINA_API_KEY` (web search and reading pages), `HEI_SECRET`, `HEI_DATA_DIR` (default `./data`).
 
 ## Definition of done
 

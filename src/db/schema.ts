@@ -16,3 +16,17 @@ export const chats = sqliteTable("chats", {
 });
 
 export type ChatRow = typeof chats.$inferSelect;
+
+/** Stored sign-ins, one per pi-ai provider id; `data` is the credential JSON, sealed with HEI_SECRET. */
+export const credentials = sqliteTable("credentials", {
+  providerId: text("provider_id").primaryKey(),
+  type: text("type", { enum: ["api_key", "oauth"] }).notNull(),
+  data: text("data").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/** Install-wide values, such as the device id OpenAI knows this installation by. */
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});

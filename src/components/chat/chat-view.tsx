@@ -9,15 +9,18 @@ import {
 } from "@/components/ai-elements/conversation";
 import { Spinner } from "@/components/ui/spinner";
 import { useChatStream } from "@/hooks/use-chat-stream";
-import { sendMessage, stopChat } from "@/lib/chat-api";
+import { sendMessage, setChatModel, stopChat } from "@/lib/chat-api";
 import { chatMessages } from "@/lib/chat-stream";
 import { ChatComposer } from "./chat-composer";
 import { useChatList } from "./chat-list";
 import { ChatMessageView } from "./chat-message";
+import { ModelPicker } from "./model-picker";
+import { useModels } from "./models";
 
 export function ChatView({ chatId }: { chatId: number }) {
   const { state, connection, loaded } = useChatStream(chatId);
   const messages = useMemo(() => chatMessages(state), [state]);
+  const { nameOf } = useModels();
   useChatTitle(chatId);
 
   if (connection === "closed") {
@@ -47,7 +50,17 @@ export function ChatView({ chatId }: { chatId: number }) {
             </div>
           )}
           {messages.map((message) => (
-            <ChatMessageView key={message.key} message={message} />
+            <ChatMessageView
+              key={message.key}
+              message={message}
+              switchedTo={
+                message.role === "assistant" &&
+                message.modelChanged &&
+                message.model
+                  ? nameOf(message.model)
+                  : undefined
+              }
+            />
           ))}
           {state.failure && !state.running && (
             <p className="text-sm text-destructive">{state.failure}</p>
@@ -61,6 +74,16 @@ export function ChatView({ chatId }: { chatId: number }) {
           running={state.running}
           onStop={() => stopChat(chatId)}
           status={status}
+          tools={
+            <ModelPicker
+              value={state.model}
+              onChange={(model) =>
+                setChatModel(chatId, model).catch((error) =>
+                  console.warn("Could not switch the model:", error),
+                )
+              }
+            />
+          }
         />
       </div>
     </div>

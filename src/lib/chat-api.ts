@@ -1,13 +1,20 @@
+import type { ModelRef } from "@earendil-works/pi-durable";
 import { nanoid } from "nanoid";
+import type { ModelChoice } from "@/agent/model-catalog";
+import type { ConnectionStatus } from "@/connections/connections";
 
 // Request ids make retries safe: the server admits a message with a given id once. nanoid rather than
 // crypto.randomUUID(), which browsers expose only on HTTPS or localhost (not on the LAN dev address).
 const newRequestId = () => nanoid();
 
-export async function startChat(content: string): Promise<number> {
+export async function startChat(
+  content: string,
+  model?: ModelRef,
+): Promise<number> {
   const response = await post("/api/chats", {
     content,
     requestId: newRequestId(),
+    model,
   });
   const { chatId } = (await response.json()) as { chatId: number };
   return chatId;
@@ -30,6 +37,39 @@ export async function renameChat(chatId: number, title: string) {
 
 export async function deleteChat(chatId: number) {
   await request("DELETE", `/api/chats/${chatId}`);
+}
+
+export async function setChatModel(chatId: number, model: ModelRef) {
+  await request("PATCH", `/api/chats/${chatId}`, { model });
+}
+
+export type AvailableModels = {
+  models: ModelChoice[];
+  defaultModel: ModelRef;
+};
+
+export async function getModels(): Promise<AvailableModels> {
+  return (await request("GET", "/api/models")).json();
+}
+
+export async function getConnections(): Promise<ConnectionStatus> {
+  return (await request("GET", "/api/connections")).json();
+}
+
+export async function startChatGPTSignIn(): Promise<{ authUrl: string }> {
+  return (await post("/api/connections/chatgpt/sign-in")).json();
+}
+
+export async function finishChatGPTSignIn(redirectUrl: string) {
+  await post("/api/connections/chatgpt/sign-in/finish", { redirectUrl });
+}
+
+export async function cancelChatGPTSignIn() {
+  await request("DELETE", "/api/connections/chatgpt/sign-in");
+}
+
+export async function disconnectChatGPT() {
+  await request("DELETE", "/api/connections/chatgpt");
 }
 
 function post(url: string, body?: unknown): Promise<Response> {

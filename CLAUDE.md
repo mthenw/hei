@@ -12,13 +12,13 @@ Single-user personal assistant: Next.js + [pi-durable](https://github.com/earend
 ## Runtime
 
 - **bun is the package manager; Node 24 is the runtime.** pi-durable needs `node:sqlite`, so scripts run the app with Node (`next dev`, `next start`), never `bun run` as the runtime.
-- **One Harness, one process.** pi-durable has no cross-process locking. The Agent (which owns the Harness) lives on `globalThis` and is opened once from `instrumentation.ts`; reach it through `getAgent()` from `@/agent`. Never point a second server (a `next start` smoke test, a script) at the same data directory — give it its own `HEI_DATA_DIR`.
-- **`src/agent/` is bundled more than once.** Next.js compiles it separately into instrumentation and into each route, and they share one Agent instance through `globalThis`. Module identity differs across that boundary: compare errors and objects by a `Symbol.for()` brand (see `ChatNotFound.is`), never `instanceof`. Restart the dev server after changing `src/agent/`, since the shared Agent keeps the code it was opened with.
+- **One Harness, one process.** pi-durable has no cross-process locking. `src/server/hei.ts` builds everything once per process (app database, credential store, models, Agent, Chats, Connections), keeps it on `globalThis`, and is first called from `instrumentation.ts`. Route handlers reach it through `getHei()`. Never point a second server (a `next start` smoke test, a script) at the same data directory — give it its own `HEI_DATA_DIR`.
+- **Server modules are bundled more than once.** Next.js compiles them separately into instrumentation and into each route, all sharing the one `getHei()` instance. Module identity differs across that boundary: match errors with `HeiError` kinds (`isHeiError`, e.g. `ChatNotFound.is`), never `instanceof`; `src/app/api/respond.ts` maps them to statuses. Restart the dev server after changing `src/agent/` or `src/server/`, since the shared instance keeps the code it was built with.
 - `src/agent/` stays free of Next.js imports.
 
 ## App database
 
-`app.sqlite` holds Hei's own data through Drizzle (see [ADR 0002](docs/adr/0002-separate-app-database.md)). To change the schema, edit `src/db/schema.ts`, run `bun run db:generate --name <change>`, and commit the new files in `drizzle/`; migrations apply when the server starts. Product operations on chats go through `Chats` (`getChats()` from `@/chats`), which keeps the row and the pi-durable conversation in step and notifies the live chat list.
+`app.sqlite` holds Hei's own data through Drizzle (see [ADR 0002](docs/adr/0002-separate-app-database.md)). To change the schema, edit `src/db/schema.ts`, run `bun run db:generate --name <change>`, and commit the new files in `drizzle/`; migrations apply when the server starts. Product operations on chats go through `Chats` (`getHei().chats`), which keeps the row and the pi-durable conversation in step and notifies the live chat list.
 
 ## pi-durable and pi-ai
 
@@ -29,6 +29,8 @@ Single-user personal assistant: Next.js + [pi-durable](https://github.com/earend
 ## Model access
 
 Claude is reached only through `ANTHROPIC_API_KEY`; ChatGPT only through Sign in with ChatGPT (pi-ai `openai` provider). pi-ai's Claude subscription OAuth impersonates Claude Code and violates Anthropic's terms — leave it unused. See [ADR 0004](docs/adr/0004-model-access.md).
+
+Two guardrails keep it that way: the credential store only stores sign-ins for `openai`, and Hei's pi-ai auth context hides `ANTHROPIC_OAUTH_TOKEN`. Which models are offered, the default for new chats, and the side-job model come from `ModelCatalog` (`src/agent/model-catalog.ts`).
 
 ## UI
 
@@ -42,4 +44,4 @@ The chat UI's only dependency on pi-durable's event shapes is `src/lib/chat-stre
 
 ## Tests
 
-Agent tests run on pi-ai's fake model — no real model calls in the test suite.
+The test suite never calls a real model. Build agents with `openTestAgent()` from `src/agent/testing.ts`: it offers only the scripted dev model and gives pi-ai an empty environment, so API keys on the machine stay invisible to tests.

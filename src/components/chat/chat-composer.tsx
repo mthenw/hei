@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   PromptInput,
   PromptInputBody,
@@ -19,6 +19,8 @@ type ChatComposerProps = {
   onStop?: () => Promise<void>;
   /** Shown beside the button, e.g. how many messages are queued. */
   status?: string;
+  /** Controls in the composer's footer, such as the model picker. */
+  tools?: ReactNode;
 };
 
 export function ChatComposer({
@@ -26,6 +28,7 @@ export function ChatComposer({
   running = false,
   onStop,
   status,
+  tools,
 }: ChatComposerProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
@@ -53,6 +56,7 @@ export function ChatComposer({
           </PromptInputBody>
           <PromptInputFooter>
             <PromptInputTools>
+              {tools}
               {status && (
                 <span className="px-2 text-xs text-muted-foreground">
                   {status}

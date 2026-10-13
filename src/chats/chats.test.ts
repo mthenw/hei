@@ -1,8 +1,6 @@
-import { createModels } from "@earendil-works/pi-ai";
-import { MemoryStorage } from "@earendil-works/pi-durable";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Agent, ChatNotFound } from "@/agent";
-import { createDevModel, DEV_MODEL } from "@/agent/dev-model";
+import { type Agent, ChatNotFound, ModelUnavailable } from "@/agent";
+import { openTestAgent } from "@/agent/testing";
 import { openAppDatabase } from "@/db/database";
 import { Chats, InvalidTitle } from "./chats";
 
@@ -11,15 +9,11 @@ let chats: Chats;
 let clock: number;
 
 beforeEach(async () => {
-  const models = createModels();
-  models.setProvider(createDevModel().provider);
-  agent = await Agent.open({
-    storage: new MemoryStorage(),
-    models,
-    defaultModel: DEV_MODEL,
-  });
+  agent = await openTestAgent();
   clock = Date.UTC(2026, 9, 13, 9, 0);
-  chats = new Chats(agent, await openAppDatabase(":memory:"), () => clock);
+  chats = new Chats(agent, await openAppDatabase(":memory:"), {
+    now: () => clock,
+  });
 });
 
 afterEach(async () => {
@@ -106,5 +100,51 @@ describe("Chats", () => {
     await chats.start(message("After unsubscribing"));
 
     expect(changes).toBe(4);
+  });
+
+  it("replaces the provisional title with a written one once Hei answers", async () => {
+    const titled = new Chats(agent, await openAppDatabase(":memory:"), {
+      writeTitle: async (first, answer) =>
+        answer.includes("You said") ? `About: ${first}` : undefined,
+    });
+    const id = await titled.start(message("dinner plans"));
+    await titled.titled(id);
+
+    expect((await titled.list())[0]?.title).toBe("About: dinner plans");
+  });
+
+  it("keeps a title the user set before the written one arrives", async () => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const titled = new Chats(agent, await openAppDatabase(":memory:"), {
+      writeTitle: async () => {
+        await gate;
+        return "Written title";
+      },
+    });
+    const id = await titled.start(message("dinner plans"));
+    await titled.rename(id, "My name for it");
+    release();
+    await titled.titled(id);
+
+    expect((await titled.list())[0]?.title).toBe("My name for it");
+  });
+
+  it("starts a chat on a chosen model and refuses one that isn't available", async () => {
+    const id = await chats.start(message("Hello"), {
+      provider: "hei-dev",
+      modelId: "echo",
+    });
+    expect(id).toBeGreaterThan(0);
+
+    const claude = { provider: "anthropic", modelId: "claude-sonnet-5-5" };
+    await expect(chats.start(message("Hi"), claude)).rejects.toSatisfy(
+      ModelUnavailable.is,
+    );
+    await expect(chats.setModel(id, claude)).rejects.toSatisfy(
+      ModelUnavailable.is,
+    );
   });
 });

@@ -1,14 +1,21 @@
 "use client";
 
+import type { ModelRef } from "@earendil-works/pi-durable";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { startChat } from "@/lib/chat-api";
 import { ChatComposer } from "./chat-composer";
+import { ModelPicker } from "./model-picker";
+import { useModels } from "./models";
 
 export function NewChat() {
   const router = useRouter();
+  const { defaultModel } = useModels();
+  // Until the user picks one, a new chat starts on whatever the default is when it is sent.
+  const [picked, setPicked] = useState<ModelRef>();
 
   async function start(text: string) {
-    const chatId = await startChat(text);
+    const chatId = await startChat(text, picked);
     router.push(`/chat/${chatId}`);
   }
 
@@ -18,7 +25,12 @@ export function NewChat() {
         What can I help with?
       </h1>
       <div className="w-full max-w-3xl">
-        <ChatComposer onSend={start} />
+        <ChatComposer
+          onSend={start}
+          tools={
+            <ModelPicker value={picked ?? defaultModel} onChange={setPicked} />
+          }
+        />
       </div>
     </div>
   );

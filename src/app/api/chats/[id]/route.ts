@@ -1,6 +1,7 @@
-import { badRequest, readBody, withChat } from "../request";
+import { badRequest } from "../../respond";
+import { readBody, readModel, withChat } from "../request";
 
-/** Rename a chat: `{ title }`. */
+/** Change a chat: `{ title }` renames it, `{ model }` switches the model it runs on. */
 export async function PATCH(
   request: Request,
   { params }: RouteContext<"/api/chats/[id]">,
@@ -8,9 +9,14 @@ export async function PATCH(
   return withChat(params, async (chats, chatId) => {
     const body = await readBody(request);
     if (body instanceof Response) return body;
-    if (typeof body.title !== "string")
+    const model = readModel(body.model);
+    if (model instanceof Response) return model;
+    if (body.title !== undefined && typeof body.title !== "string")
       return badRequest("title must be a string.");
-    await chats.rename(chatId, body.title);
+    if (body.title === undefined && model === undefined)
+      return badRequest("Send a title or a model.");
+    if (model !== undefined) await chats.setModel(chatId, model);
+    if (typeof body.title === "string") await chats.rename(chatId, body.title);
     return new Response(null, { status: 204 });
   });
 }

@@ -1,0 +1,100 @@
+import path from "node:path";
+import {
+  type AuthContext,
+  createModels,
+  defaultProviderAuthContext,
+} from "@earendil-works/pi-ai";
+import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
+import { openaiProvider } from "@earendil-works/pi-ai/providers/openai";
+import { openNodeSqliteStorage } from "@earendil-works/pi-durable/storage/sqlite/node";
+import { Agent } from "@/agent/agent";
+import { createDevModel } from "@/agent/dev-model";
+import { ModelCatalog } from "@/agent/model-catalog";
+import { Chats } from "@/chats/chats";
+import { Connections } from "@/connections/connections";
+import { DatabaseCredentialStore } from "@/connections/credential-store";
+import { openAppDatabase } from "@/db/database";
+import { installationId } from "@/db/settings";
+import { dataDir } from "@/lib/data-dir";
+import { SecretBox } from "@/lib/secret-box";
+
+/** Everything the server runs on, built once per process. */
+export type Hei = {
+  agent: Agent;
+  chats: Chats;
+  connections: Connections;
+};
+
+// pi-durable allows one owner per storage and has no cross-process locking, so the process builds Hei exactly once.
+// It lives on globalThis because Next.js bundles this module more than once (instrumentation, each route) and dev hot
+// reload re-evaluates it; every copy must reach the same instance.
+const globalForHei = globalThis as typeof globalThis & {
+  __hei?: Promise<Hei>;
+};
+
+export function getHei(): Promise<Hei> {
+  globalForHei.__hei ??= openHei().catch((error) => {
+    globalForHei.__hei = undefined;
+    throw error;
+  });
+  return globalForHei.__hei;
+}
+
+async function openHei(): Promise<Hei> {
+  const dir = await dataDir();
+  const db = await openAppDatabase(path.join(dir, "app.sqlite"));
+  const box = secretBox(process.env.HEI_SECRET);
+
+  const models = createModels({
+    credentials: new DatabaseCredentialStore(db, box),
+    authContext: heiAuthContext(),
+  });
+  models.setProvider(openaiProvider());
+  models.setProvider(anthropicProvider());
+  models.setProvider(createDevModel({ tokensPerSecond: 30 }).provider);
+  const catalog = new ModelCatalog({
+    models,
+    includeDevModel:
+      process.env.NODE_ENV !== "production" ||
+      process.env.HEI_DEV_MODEL === "1",
+  });
+
+  const agent = await Agent.open({
+    storage: await openNodeSqliteStorage(path.join(dir, "agent.sqlite")),
+    models,
+    catalog,
+  });
+  return {
+    agent,
+    chats: new Chats(agent, db),
+    connections: new Connections({
+      models,
+      catalog,
+      installationId: await installationId(db),
+      secretConfigured: box !== undefined,
+    }),
+  };
+}
+
+function secretBox(secret: string | undefined): SecretBox | undefined {
+  if (secret === undefined || secret.trim() === "") return undefined;
+  try {
+    return new SecretBox(secret.trim(), "credentials");
+  } catch (error) {
+    console.error("HEI_SECRET is unusable, so sign-ins are disabled:", error);
+    return undefined;
+  }
+}
+
+/**
+ * pi-ai's environment without ANTHROPIC_OAUTH_TOKEN. That variable holds a Claude subscription token, which pi-ai would
+ * use by presenting itself as Claude Code; Hei reaches Claude only with ANTHROPIC_API_KEY (ADR 0004).
+ */
+function heiAuthContext(): AuthContext {
+  const base = defaultProviderAuthContext();
+  return {
+    env: async (name) =>
+      name === "ANTHROPIC_OAUTH_TOKEN" ? undefined : base.env(name),
+    fileExists: (file) => base.fileExists(file),
+  };
+}
