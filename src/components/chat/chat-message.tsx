@@ -110,7 +110,7 @@ function AssistantMessageView({
         <SourceChips cited={cites.cited} />
       </MessageContent>
       {onRegenerate && (
-        <MessageActions className="-ml-2">
+        <MessageActions className="-ml-1.5">
           <RegenerateAction onRegenerate={onRegenerate} />
         </MessageActions>
       )}
@@ -140,6 +140,9 @@ function RegenerateAction({
   return (
     <MessageAction
       tooltip="Regenerate"
+      size="icon-xs"
+      // Quiet until pointed at: it sits under every last reply.
+      className="text-muted-foreground"
       disabled={pending}
       onClick={() => void regenerate()}
     >
