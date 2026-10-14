@@ -22,9 +22,12 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool";
+import { MentionText } from "@/components/contacts/mention-text";
 import type { AssistantPart, ChatMessage, ToolPart } from "@/lib/chat-stream";
 import { citations } from "@/lib/citations";
+import { mentionsAsLinks } from "@/lib/mentions";
 import { CalendarToolView, isCalendarTool } from "./calendar-tool";
+import { ContactsToolView, isContactsTool } from "./contacts-tool";
 import { isPlacesTool, PlacesToolView } from "./places-tool";
 import { CitationLink, CitationsProvider, SourceChips } from "./sources";
 import { isTodoTool, TodoToolView } from "./todo-tool";
@@ -48,7 +51,10 @@ export function ChatMessageView({
     return (
       <Message from="user">
         <MessageContent className="whitespace-pre-wrap">
-          {message.text}
+          {/* One block: the content is a flex column, which would put each mention on a line of its own. */}
+          <p>
+            <MentionText text={message.text} />
+          </p>
         </MessageContent>
       </Message>
     );
@@ -167,7 +173,7 @@ function AssistantPartView({
           isAnimating={streaming}
           components={markdownComponents}
         >
-          {part.text}
+          {mentionsAsLinks(part.text)}
         </MessageResponse>
       );
     case "reasoning":
@@ -182,6 +188,7 @@ function AssistantPartView({
       if (isPlacesTool(part)) return <PlacesToolView part={part} />;
       if (isTodoTool(part)) return <TodoToolView part={part} />;
       if (isCalendarTool(part)) return <CalendarToolView part={part} />;
+      if (isContactsTool(part)) return <ContactsToolView part={part} />;
       return <ToolCallView part={part} />;
   }
 }

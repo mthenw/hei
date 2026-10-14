@@ -2,8 +2,10 @@
 
 import { CalendarIcon, NotebookTextIcon } from "lucide-react";
 import { useState } from "react";
+import { MentionText } from "@/components/contacts/mention-text";
 import { Checkbox } from "@/components/ui/checkbox";
 import { updateTodo } from "@/lib/chat-api";
+import { withoutMentions } from "@/lib/mentions";
 import { formatDue } from "@/lib/todo-dates";
 import { cn } from "@/lib/utils";
 import type { Todo } from "@/todos/todos";
@@ -50,7 +52,9 @@ export function TodoRow({
         checked={done}
         onCheckedChange={(checked) => void toggle(checked === true)}
         aria-label={
-          done ? `Reopen “${todo.title}”` : `Complete “${todo.title}”`
+          done
+            ? `Reopen “${withoutMentions(todo.title)}”`
+            : `Complete “${withoutMentions(todo.title)}”`
         }
         className="mt-0.5"
       />
@@ -74,7 +78,7 @@ export function TodoRow({
               !
             </span>
           )}
-          {todo.title}
+          <MentionText text={todo.title} />
         </span>
         {(due || todo.notes || todo.agent) && (
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

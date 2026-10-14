@@ -4,12 +4,17 @@ import {
   fauxProvider,
   fauxText,
   fauxThinking,
+  fauxToolCall,
 } from "@earendil-works/pi-ai";
+import { mentionOf, splitMentions } from "@/lib/mentions";
 
 export const DEV_MODEL = { provider: "hei-dev", modelId: "echo" } as const;
 
 /** Sending exactly this to the dev model makes it fail the way a used-up ChatGPT plan does, to try failover by hand. */
 export const SIMULATE_LIMIT = "/limit";
+
+/** A message starting with this makes the dev model draft an email to the people it mentions, or to a test address. */
+export const SIMULATE_DRAFT = "/draft";
 
 /**
  * A scripted stand-in model: it streams a short reply that quotes the last user message. It exercises the whole chat
@@ -27,8 +32,13 @@ export function createDevModel(options: { tokensPerSecond?: number } = {}) {
   // start in the same tick.
   const reply: FauxResponseFactory = (context) => {
     faux.appendResponses([reply]);
+    // Only a simulated draft calls a tool; its result ends the run.
+    if (context.messages.at(-1)?.role === "toolResult")
+      return fauxAssistantMessage([fauxText("The draft is above.")]);
     const text = lastUserText(context.messages);
-    return text.trim() === SIMULATE_LIMIT ? simulatedLimit() : devReply(text);
+    if (text.trim() === SIMULATE_LIMIT) return simulatedLimit();
+    if (text.trim().startsWith(SIMULATE_DRAFT)) return simulatedDraft(text);
+    return devReply(text);
   };
   faux.setResponses(Array.from({ length: 4 }, () => reply));
 
@@ -41,6 +51,24 @@ function simulatedLimit() {
     errorMessage:
       '429 {"error":{"code":"subscription_sharing_usage_limit_exceeded","message":"Simulated by the dev model"}}',
   });
+}
+
+function simulatedDraft(text: string) {
+  const mentioned = splitMentions(text).flatMap((segment) =>
+    typeof segment === "string"
+      ? []
+      : [mentionOf(segment.name, segment.contactId)],
+  );
+  return fauxAssistantMessage(
+    [
+      fauxToolCall("draft_email", {
+        to: mentioned.length > 0 ? mentioned : ["someone@example.com"],
+        subject: "Hello from Hei",
+        body: "Hi,\n\nThis draft comes from Hei's development model.\n\nBest",
+      }),
+    ],
+    { stopReason: "toolUse" },
+  );
 }
 
 function devReply(userText: string) {
@@ -77,10 +105,13 @@ function lastUserText(messages: readonly TranscriptMessage[]): string {
   if (!Array.isArray(last.content)) return "";
   return (
     last.content
-      // Hei stamps each message with its send time for the model; the dev model quotes what the user wrote.
+      // Hei stamps each message with its send time and adds mentioned contacts' details for the model; the dev model
+      // quotes what the user wrote.
       .filter(
         (part) =>
-          part?.type === "text" && !/^<sent>.*<\/sent>$/.test(part.text),
+          part?.type === "text" &&
+          !/^<sent>.*<\/sent>$/.test(part.text) &&
+          !part.text.startsWith("<contacts>"),
       )
       .map((part) => part.text)
       .join("\n")

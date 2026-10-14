@@ -38,7 +38,7 @@ The editable persona prompt that shapes how Hei behaves, kept apart from the Pro
 _Avoid_: System prompt (in user-facing text)
 
 **Connection**:
-An authorised link from Hei to an outside account, such as a ChatGPT plan or, later, a calendar account.
+An authorised link from Hei to an outside account, such as a ChatGPT plan or a calendar account.
 _Avoid_: Integration
 
 ### Models
@@ -75,7 +75,7 @@ Where a todo's Agent is: Queued, Working, Needs you, Ready for review, Failed or
 ### Calendar
 
 **Calendar account**:
-A Google sign-in or an ICS link, with one or more calendars.
+A Google sign-in or an ICS link, with one or more calendars. A Google sign-in may also allow its contacts.
 _Avoid_: Integration
 
 **Plan card**:
@@ -84,3 +84,16 @@ _Avoid_: Suggestion
 
 **Time block**:
 An event made for a todo by dropping it on a time in the calendar, linked to that todo.
+
+### Contacts
+
+**Contact**:
+A person from a Google account's contacts: a saved contact from the address book, or an other contact Gmail keeps from mail the user exchanged.
+_Avoid_: Person (in code), address book entry
+
+**Mention**:
+A contact named in a message or todo with `@`, stored as `@[Name](contact:ID)` and shown as the tinted name.
+_Avoid_: Tag
+
+**Email draft**:
+An email Hei wrote for the user to send, shown in a chat as a card with Open in Gmail and Copy text. Hei never sends email.

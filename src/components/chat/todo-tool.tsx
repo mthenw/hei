@@ -3,6 +3,7 @@
 import { ListTodoIcon } from "lucide-react";
 import Link from "next/link";
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { MentionText } from "@/components/contacts/mention-text";
 import type { ToolPart } from "@/lib/chat-stream";
 import { formatDue } from "@/lib/todo-dates";
 import type { TodoToolDetails } from "@/todos/tools";
@@ -50,7 +51,7 @@ export function TodoToolView({ part }: { part: ToolPart }) {
     `${VERBS.listed} · ${details.open ?? 0} open`
   ) : (
     <>
-      {VERBS[details.action]} “{details.todo?.title}”
+      {VERBS[details.action]} “<MentionText text={details.todo?.title ?? ""} />”
       {details.action === "added" && details.todo?.dueDate && (
         <span>
           {" · "}

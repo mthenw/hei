@@ -4,10 +4,15 @@ import { BotIcon, MessageSquareIcon, SquareIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message";
+import { CitationLink } from "@/components/chat/sources";
 import { Button } from "@/components/ui/button";
 import { handOffTodo, stopTodoAgent } from "@/lib/chat-api";
+import { mentionsAsLinks } from "@/lib/mentions";
 import type { Todo } from "@/todos/todos";
 import { AgentBadge } from "./agent-badge";
+
+// Stable, so the memoised markdown isn't re-rendered; links show mentions as chips.
+const resultComponents = { a: CitationLink };
 
 /** A todo's agent: hand it off, follow it, stop it, and read what it reported. */
 export function AgentPanel({ todo }: { todo: Todo }) {
@@ -97,7 +102,9 @@ export function AgentPanel({ todo }: { todo: Todo }) {
       {agent?.result && (
         // Reports are read in a small panel: headings at text size.
         <div className="max-h-60 min-w-0 overflow-y-auto text-sm [&_h1]:text-sm [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-sm">
-          <MessageResponse>{agent.result}</MessageResponse>
+          <MessageResponse components={resultComponents}>
+            {mentionsAsLinks(agent.result)}
+          </MessageResponse>
         </div>
       )}
       {error && <p className="text-xs text-destructive">{error}</p>}

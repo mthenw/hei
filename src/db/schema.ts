@@ -1,6 +1,7 @@
 import {
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   unique,
@@ -105,6 +106,8 @@ export const calendarAccounts = sqliteTable("calendar_accounts", {
   error: text("error"),
   syncedAt: integer("synced_at", { mode: "timestamp_ms" }),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  /** What the Google sign-in allows, space-separated as Google lists it; null until Hei has asked. */
+  scopes: text("scopes"),
 });
 
 export type CalendarAccountRow = typeof calendarAccounts.$inferSelect;
@@ -194,3 +197,57 @@ export const calendarPlans = sqliteTable("calendar_plans", {
 });
 
 export type CalendarPlanRow = typeof calendarPlans.$inferSelect;
+
+/**
+ * A person from a Google account's contacts, synced. Saved contacts are the address book; other contacts are the
+ * people Gmail keeps from mail the user exchanged with them, with a name and an address at most.
+ */
+export const contacts = sqliteTable(
+  "contacts",
+  {
+    // Hei's id: what mentions and Hei's tools call the contact.
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    accountId: integer("account_id")
+      .notNull()
+      .references(() => calendarAccounts.id, { onDelete: "cascade" }),
+    /** Google's resource name: "people/c…" for a saved contact, "otherContacts/c…" for another. */
+    resourceName: text("resource_name").notNull(),
+    saved: integer("saved", { mode: "boolean" }).notNull(),
+    /** The display name, or the address when there is none. */
+    name: text("name").notNull(),
+    /** The first address, lowercased; an other contact with a saved contact's address is left out of searches. */
+    email: text("email"),
+    /** Every address and phone number (JSON string arrays). */
+    emails: text("emails").notNull(),
+    phones: text("phones").notNull(),
+    /** Job title and company, e.g. "CFO, Acme". */
+    organization: text("organization"),
+    /** Name, addresses and organization, lowercased and without accents, for search. */
+    search: text("search").notNull(),
+  },
+  (table) => [
+    unique().on(table.accountId, table.resourceName),
+    index("contacts_email").on(table.email),
+  ],
+);
+
+export type ContactRow = typeof contacts.$inferSelect;
+
+/** Where each of an account's two contact lists is in its sync. */
+export const contactSyncs = sqliteTable(
+  "contact_syncs",
+  {
+    accountId: integer("account_id")
+      .notNull()
+      .references(() => calendarAccounts.id, { onDelete: "cascade" }),
+    list: text("list", { enum: ["saved", "other"] }).notNull(),
+    /** Google's sync token; null until the first full sync. */
+    syncToken: text("sync_token"),
+    syncedAt: integer("synced_at", { mode: "timestamp_ms" }),
+    /** Why the last sync failed; null when it worked. */
+    error: text("error"),
+  },
+  (table) => [primaryKey({ columns: [table.accountId, table.list] })],
+);
+
+export type ContactSyncRow = typeof contactSyncs.$inferSelect;

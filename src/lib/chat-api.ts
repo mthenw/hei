@@ -10,6 +10,7 @@ import type {
 } from "@/calendar/calendars";
 import type { PlanView } from "@/calendar/plans";
 import type { ConnectionStatus } from "@/connections/connections";
+import type { Contact, ContactsStatus } from "@/contacts/contacts";
 import type { ProfileChange, ProfileData } from "@/profile/profile";
 import type { NewTodo, Todo, TodoChange } from "@/todos/todos";
 import type { MapsConfig } from "./maps-config";
@@ -182,6 +183,26 @@ export async function removeTimeBlock(eventId: number) {
 
 export async function syncCalendars() {
   await post("/api/calendar/sync");
+}
+
+export async function searchContacts(
+  query: string,
+  signal?: AbortSignal,
+): Promise<Contact[]> {
+  const response = await fetch(
+    `/api/contacts?${new URLSearchParams({ q: query })}`,
+    { signal },
+  );
+  if (!response.ok) throw new Error(`Request failed (${response.status})`);
+  return ((await response.json()) as { contacts: Contact[] }).contacts;
+}
+
+export async function getContactsStatus(): Promise<ContactsStatus> {
+  return (await request("GET", "/api/contacts/status")).json();
+}
+
+export async function syncContacts() {
+  await post("/api/contacts/sync");
 }
 
 export async function getMapsConfig(): Promise<MapsConfig> {

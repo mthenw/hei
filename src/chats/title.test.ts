@@ -28,6 +28,12 @@ describe("titleFromMessage", () => {
     expect(titleFromMessage("x".repeat(80))).toBe(`${"x".repeat(60)}…`);
   });
 
+  it("names mentioned people plainly", () => {
+    expect(
+      titleFromMessage("Email @[Anna Kowalska](contact:42) about Q4"),
+    ).toBe("Email Anna Kowalska about Q4");
+  });
+
   it("falls back for a message with no text", () => {
     expect(titleFromMessage("   \n  ")).toBe("New chat");
   });

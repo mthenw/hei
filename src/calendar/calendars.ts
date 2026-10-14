@@ -108,6 +108,14 @@ const SYNC_EVERY: Record<CalendarAccountRow["provider"], number> = {
 /** Rows per insert: SQLite limits how many values one statement may carry. */
 const CHUNK = 50;
 
+/** A Google sign-in, as the rest of Hei sees it. */
+export type GoogleAccount = {
+  id: number;
+  email: string;
+  /** What the sign-in allows; empty until Hei has asked Google. */
+  scopes: string[];
+};
+
 export type CalendarsOptions = {
   /** Seals tokens and addresses; without it no account can be added. */
   box: SecretBox | undefined;
@@ -182,10 +190,10 @@ export class Calendars {
     };
   }
 
-  /** Start signing in to Google: the consent address to send the browser to. */
-  beginGoogleSignIn(redirectUri: string): string {
+  /** Start signing in to Google: the consent address to send the browser to. `loginHint` picks the account. */
+  beginGoogleSignIn(redirectUri: string, loginHint?: string): string {
     this.requireBox();
-    const begun = this.oauth().begin(redirectUri);
+    const begun = this.oauth().begin(redirectUri, loginHint);
     const now = this.now();
     for (const [state, pending] of this.signIns)
       if (pending.expiresAt < now) this.signIns.delete(state);
@@ -237,7 +245,7 @@ export class Calendars {
       ? (
           await this.db
             .update(calendarAccounts)
-            .set({ secret, error: null })
+            .set({ secret, error: null, scopes: grant.scopes })
             .where(eq(calendarAccounts.id, existing.id))
             .returning()
             .get()
@@ -249,6 +257,7 @@ export class Calendars {
               provider: "google",
               name: grant.email,
               secret,
+              scopes: grant.scopes,
               createdAt: new Date(this.now()),
             })
             .returning()
@@ -257,6 +266,7 @@ export class Calendars {
     this.accessTokens.set(id, {
       accessToken: grant.accessToken,
       expiresAt: grant.expiresAt,
+      scopes: grant.scopes,
     });
     await this.syncNow(id);
     return this.account(id);
@@ -484,6 +494,40 @@ export class Calendars {
         );
       for (const account of accounts) await this.syncAccount(account);
     });
+  }
+
+  /** The Google accounts and what each sign-in allows, for the rest of Hei that uses the same sign-in (contacts). */
+  async googleAccounts(): Promise<GoogleAccount[]> {
+    const rows = await this.db
+      .select()
+      .from(calendarAccounts)
+      .where(eq(calendarAccounts.provider, "google"))
+      .orderBy(asc(calendarAccounts.id));
+    return rows.map((row) => ({
+      id: row.id,
+      email: row.name,
+      scopes: row.scopes?.split(" ").filter(Boolean) ?? [],
+    }));
+  }
+
+  /** A current access token for a Google account; `refresh` gets a new one after Google refused the last. */
+  async googleAccessToken(accountId: number, refresh = false): Promise<string> {
+    const account = await this.db
+      .select()
+      .from(calendarAccounts)
+      .where(
+        and(
+          eq(calendarAccounts.id, accountId),
+          eq(calendarAccounts.provider, "google"),
+        ),
+      )
+      .get();
+    if (account === undefined)
+      throw new CalendarNotFound(`Google account ${accountId}`);
+    const grant = JSON.parse(
+      this.requireBox().open(account.secret),
+    ) as GoogleGrant;
+    return this.accessToken(account.id, grant, refresh);
   }
 
   /** Call `listener` after every change. Returns the unsubscribe function. */
@@ -729,6 +773,12 @@ export class Calendars {
       return cached.accessToken;
     const fresh = await this.oauth().refresh(grant.refreshToken);
     this.accessTokens.set(accountId, fresh);
+    // Signing in again, or the user's own Google settings, can change what Hei may do.
+    if (fresh.scopes !== null)
+      await this.db
+        .update(calendarAccounts)
+        .set({ scopes: fresh.scopes })
+        .where(eq(calendarAccounts.id, accountId));
     return fresh.accessToken;
   }
 

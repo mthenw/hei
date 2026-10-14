@@ -2,9 +2,14 @@
 
 import { PlusIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
+import {
+  MentionPopover,
+  useMentionPicker,
+} from "@/components/contacts/mention-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { addTodo } from "@/lib/chat-api";
+import { fromTyped } from "@/lib/mentions";
 import type { Priority } from "@/todos/todos";
 import { PrioritySelect } from "./priority-select";
 
@@ -16,6 +21,12 @@ export function QuickAdd() {
   const [priority, setPriority] = useState<Priority>("normal");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const [picked] = useState(() => new Map<string, number>());
+  const picker = useMentionPicker<HTMLInputElement>({
+    value: title,
+    onValueChange: setTitle,
+    picked,
+  });
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -24,13 +35,14 @@ export function QuickAdd() {
     setError(undefined);
     try {
       await addTodo({
-        title,
+        title: fromTyped(title, picked),
         dueDate: dueDate || null,
         dueTime: dueDate && dueTime ? dueTime : null,
         priority,
       });
       // Date and priority stay, for adding several alike.
       setTitle("");
+      picked.clear();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -41,13 +53,15 @@ export function QuickAdd() {
   return (
     <form onSubmit={add} className="flex flex-col gap-1.5">
       <div className="flex flex-col gap-2 rounded-lg border bg-card p-2 sm:flex-row sm:items-center">
-        <Input
-          aria-label="New todo"
-          placeholder="Add a todo"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          className="border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
-        />
+        <MentionPopover picker={picker}>
+          <Input
+            aria-label="New todo"
+            placeholder="Add a todo"
+            value={title}
+            className="border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+            {...picker.fieldProps}
+          />
+        </MentionPopover>
         <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
           <Input
             type="date"

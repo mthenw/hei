@@ -14,6 +14,7 @@ import {
   visibleDays,
 } from "@/lib/calendar-layout";
 import { createTimeBlock, removeTimeBlock, updateTodo } from "@/lib/chat-api";
+import { withoutMentions } from "@/lib/mentions";
 import { addDays, formatDue, localDate } from "@/lib/todo-dates";
 import { startOfDay, zonedInstant } from "@/lib/zoned-time";
 import { AskHei } from "./ask-hei";
@@ -73,7 +74,7 @@ export function CalendarView() {
       }).then(
         (event) =>
           setToast({
-            message: `Blocked ${BLOCK_MINUTES} min for “${todo.title}”`,
+            message: `Blocked ${BLOCK_MINUTES} min for “${withoutMentions(todo.title)}”`,
             undo: () => removeTimeBlock(event.id),
           }),
         failed,
@@ -84,7 +85,7 @@ export function CalendarView() {
     updateTodo(todoId, { dueDate: date, dueTime }).then(
       () =>
         setToast({
-          message: `“${todo.title}” is due ${formatDue(date, dueTime, today)}`,
+          message: `“${withoutMentions(todo.title)}” is due ${formatDue(date, dueTime, today)}`,
           undo: () =>
             updateTodo(todoId, {
               dueDate: todo.dueDate,

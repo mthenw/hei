@@ -1,3 +1,6 @@
+/** Where to go once Google is connected: set when the sign-in starts, read when Google sends the browser back. */
+export const RETURN_COOKIE = "hei-google-back";
+
 /** A small page that says why connecting Google didn't work, with a way back. */
 export function signInProblem(message: string): Response {
   const escaped = message

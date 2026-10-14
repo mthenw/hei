@@ -2,6 +2,7 @@
 
 import { CircleIcon } from "lucide-react";
 import type { CSSProperties, DragEvent } from "react";
+import { MentionText } from "@/components/contacts/mention-text";
 import { cn } from "@/lib/utils";
 import type { Todo } from "@/todos/todos";
 
@@ -60,7 +61,7 @@ export function TodoChip({
         {showTime && todo.dueTime && (
           <span className="mr-1 tabular-nums">{todo.dueTime}</span>
         )}
-        {todo.title}
+        <MentionText text={todo.title} />
       </span>
     </button>
   );

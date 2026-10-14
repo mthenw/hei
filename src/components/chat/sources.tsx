@@ -8,6 +8,7 @@ import {
   useContext,
   useState,
 } from "react";
+import { MentionChip } from "@/components/contacts/mention-text";
 import type { Citation, Citations } from "@/lib/citations";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,9 @@ export function CitationLink({
   ...props
 }: ComponentProps<"a"> & { node?: unknown }) {
   const citations = useContext(CitationsContext);
+  // A mention of a contact, from mentionsAsLinks.
+  if (href?.startsWith("#contact-"))
+    return <MentionChip>{children}</MentionChip>;
   const number = href ? citations?.numberOf(href) : undefined;
   if (href && number !== undefined)
     return (

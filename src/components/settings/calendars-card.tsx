@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDaysIcon, Trash2Icon } from "lucide-react";
+import { CalendarDaysIcon, RefreshCwIcon, Trash2Icon } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import type { CalendarOverview } from "@/calendar/calendars";
 import { Badge } from "@/components/ui/badge";
@@ -19,24 +19,30 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import type { ContactsStatus } from "@/contacts/contacts";
 import {
   addIcsCalendar,
   getCalendarOverview,
+  getContactsStatus,
   removeCalendarAccount,
+  syncCalendars,
+  syncContacts,
 } from "@/lib/chat-api";
 
-/** Calendar accounts: what's connected, a form for an ICS link, and disconnecting. */
+/** Calendar accounts and their contacts: what's connected, a form for an ICS link, and disconnecting. */
 export function CalendarsCard() {
   const [overview, setOverview] = useState<CalendarOverview>();
+  const [contacts, setContacts] = useState<ContactsStatus>();
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
   const refresh = useCallback(() => {
-    getCalendarOverview().then(setOverview, (cause) =>
-      setError(cause instanceof Error ? cause.message : String(cause)),
-    );
+    const failed = (cause: unknown) =>
+      setError(cause instanceof Error ? cause.message : String(cause));
+    getCalendarOverview().then(setOverview, failed);
+    getContactsStatus().then(setContacts, failed);
   }, []);
   useEffect(refresh, [refresh]);
 
@@ -66,11 +72,12 @@ export function CalendarsCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Calendars</CardTitle>
+        <CardTitle>Calendars and contacts</CardTitle>
         <CardDescription>
-          Calendars Hei shows and plans with. Google calendars sync every 2
-          minutes, and Hei can change them once you approve; an ICS link is read
-          only and checked every 15 minutes.
+          Calendars Hei shows and plans with, and the people you can @mention.
+          Google calendars sync every 2 minutes, and Hei can change them once
+          you approve; contacts sync every 10 minutes. An ICS link is read only
+          and checked every 15 minutes.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -88,7 +95,29 @@ export function CalendarsCard() {
                     {account.error ??
                       `${account.calendars.length} ${account.calendars.length === 1 ? "calendar" : "calendars"}`}
                   </span>
+                  {account.provider === "google" && (
+                    <ContactsLine
+                      status={contacts?.accounts.find(
+                        (entry) => entry.accountId === account.id,
+                      )}
+                    />
+                  )}
                 </div>
+                {account.provider === "google" && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(() =>
+                        Promise.all([syncCalendars(), syncContacts()]),
+                      )
+                    }
+                  >
+                    <RefreshCwIcon />
+                    <span className="sr-only">Sync {account.name} now</span>
+                  </Button>
+                )}
                 <Badge variant="secondary">
                   {account.provider === "ics" ? "ICS link" : "Google"}
                 </Badge>
@@ -164,21 +193,18 @@ function GoogleConnect({
         and restart Hei. The calendar spec’s Setup says how to create them.
       </p>
     );
-  // Google only sends sign-ins back to localhost (or HTTPS), so signing in must happen on the machine running Hei.
-  const onLocalhost =
-    typeof window !== "undefined" &&
-    ["localhost", "127.0.0.1"].includes(window.location.hostname);
-  const ready = overview.secretConfigured && onLocalhost;
+  const local = onLocalhost();
+  const ready = overview.secretConfigured && local;
   return (
     <div className="flex flex-wrap items-center gap-3">
       {ready ? (
         <Button asChild>
-          <a href="/api/calendar/google/start">Connect Google Calendar</a>
+          <a href="/api/calendar/google/start">Connect Google</a>
         </Button>
       ) : (
-        <Button disabled>Connect Google Calendar</Button>
+        <Button disabled>Connect Google</Button>
       )}
-      {!onLocalhost && (
+      {!local && (
         <span className="text-xs text-muted-foreground">
           Open Hei at localhost on the computer running it to sign in to Google.
         </span>
@@ -189,5 +215,54 @@ function GoogleConnect({
         </span>
       )}
     </div>
+  );
+}
+
+/** A Google account's contacts: how many, what went wrong, or a way to allow them. */
+function ContactsLine({
+  status,
+}: {
+  status: ContactsStatus["accounts"][number] | undefined;
+}) {
+  if (status === undefined) return null;
+  if (!status.allowed)
+    return (
+      <span className="truncate text-xs text-muted-foreground">
+        Contacts not allowed ·{" "}
+        {onLocalhost() ? (
+          <a
+            href={`/api/calendar/google/start?${new URLSearchParams({ account: status.email, back: "settings" })}`}
+            className="text-primary hover:underline"
+          >
+            Allow contacts
+          </a>
+        ) : (
+          "open Hei at localhost to allow them"
+        )}
+      </span>
+    );
+  if (status.error)
+    return <span className="text-xs text-destructive">{status.error}</span>;
+  if (status.syncedAt === null)
+    return (
+      <span className="truncate text-xs text-muted-foreground">
+        Contacts syncing…
+      </span>
+    );
+  const count = status.saved + status.other;
+  return (
+    <span className="truncate text-xs text-muted-foreground">
+      {count.toLocaleString("en-GB")} {count === 1 ? "contact" : "contacts"}
+      {status.other > 0 &&
+        ` (${status.other.toLocaleString("en-GB")} from Gmail)`}
+    </span>
+  );
+}
+
+// Google only sends sign-ins back to localhost (or HTTPS), so signing in must happen on the machine running Hei.
+function onLocalhost(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1"].includes(window.location.hostname)
   );
 }

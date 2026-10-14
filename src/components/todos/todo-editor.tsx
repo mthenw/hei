@@ -2,6 +2,10 @@
 
 import { Trash2Icon } from "lucide-react";
 import { type FormEvent, useState } from "react";
+import {
+  MentionPopover,
+  useMentionPicker,
+} from "@/components/contacts/mention-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +19,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { deleteTodo, updateTodo } from "@/lib/chat-api";
+import { fromTyped, toTyped } from "@/lib/mentions";
 import type { Priority, Todo } from "@/todos/todos";
 import { AgentPanel } from "./agent-panel";
 import { PrioritySelect } from "./priority-select";
@@ -43,8 +48,28 @@ export function TodoEditor({
 }
 
 function EditorForm({ todo, onClose }: { todo: Todo; onClose: () => void }) {
-  const [title, setTitle] = useState(todo.title);
-  const [notes, setNotes] = useState(todo.notes);
+  // Mentions read as "@Name" while editing; the title and notes share the people picked.
+  const [typed] = useState(() => {
+    const title = toTyped(todo.title);
+    const notes = toTyped(todo.notes);
+    return {
+      title: title.text,
+      notes: notes.text,
+      picked: new Map([...title.picked, ...notes.picked]),
+    };
+  });
+  const [title, setTitle] = useState(typed.title);
+  const [notes, setNotes] = useState(typed.notes);
+  const titlePicker = useMentionPicker<HTMLInputElement>({
+    value: title,
+    onValueChange: setTitle,
+    picked: typed.picked,
+  });
+  const notesPicker = useMentionPicker<HTMLTextAreaElement>({
+    value: notes,
+    onValueChange: setNotes,
+    picked: typed.picked,
+  });
   const [dueDate, setDueDate] = useState(todo.dueDate ?? "");
   const [dueTime, setDueTime] = useState(todo.dueTime ?? "");
   const [priority, setPriority] = useState<Priority>(todo.priority);
@@ -69,8 +94,8 @@ function EditorForm({ todo, onClose }: { todo: Todo; onClose: () => void }) {
     event.preventDefault();
     void run(() =>
       updateTodo(todo.id, {
-        title,
-        notes,
+        title: fromTyped(title, typed.picked),
+        notes: fromTyped(notes, typed.picked),
         dueDate: dueDate || null,
         dueTime: dueDate && dueTime ? dueTime : null,
         priority,
@@ -90,20 +115,20 @@ function EditorForm({ todo, onClose }: { todo: Todo; onClose: () => void }) {
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="todo-title">Title</FieldLabel>
-          <Input
-            id="todo-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
+          <MentionPopover picker={titlePicker}>
+            <Input id="todo-title" value={title} {...titlePicker.fieldProps} />
+          </MentionPopover>
         </Field>
         <Field>
           <FieldLabel htmlFor="todo-notes">Notes</FieldLabel>
-          <Textarea
-            id="todo-notes"
-            rows={4}
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-          />
+          <MentionPopover picker={notesPicker}>
+            <Textarea
+              id="todo-notes"
+              rows={4}
+              value={notes}
+              {...notesPicker.fieldProps}
+            />
+          </MentionPopover>
         </Field>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Field>

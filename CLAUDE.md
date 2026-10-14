@@ -7,6 +7,7 @@ Single-user personal assistant: Next.js + [pi-durable](https://github.com/earend
 - [docs/adr/](docs/adr/) — why the architecture looks the way it does. Read the relevant ADR before changing process layout, storage, web tools or model access.
 - [docs/todos-spec.md](docs/todos-spec.md) — todos and hand-off agents.
 - [docs/calendar-spec.md](docs/calendar-spec.md) — calendars, Hei's plan cards, and todos on the calendar.
+- [docs/contacts-spec.md](docs/contacts-spec.md) — contacts, @mentions, and email drafts.
 - [docs/parked.md](docs/parked.md) — later work. Read when a task touches it.
 
 @AGENTS.md

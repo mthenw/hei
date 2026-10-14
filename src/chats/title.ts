@@ -1,3 +1,5 @@
+import { withoutMentions } from "@/lib/mentions";
+
 const MAX_TITLE_LENGTH = 60;
 
 /** Instructions for the side-job model that titles a chat after its first exchange. */
@@ -10,7 +12,7 @@ export const TITLE_INSTRUCTIONS = [
 
 /** The input the title model sees: the opening exchange, trimmed to keep the request small. */
 export function titleInput(firstMessage: string, answer: string): string {
-  return `User: ${firstMessage.slice(0, 2000)}\n\nAssistant: ${answer.slice(0, 2000)}`;
+  return `User: ${withoutMentions(firstMessage).slice(0, 2000)}\n\nAssistant: ${answer.slice(0, 2000)}`;
 }
 
 /** A model's reply cleaned into a title, or nothing if it isn't usable. */
@@ -26,7 +28,7 @@ export function cleanTitle(reply: string): string | undefined {
 
 /** A provisional title from the first message: its first line, cut at a word boundary. */
 export function titleFromMessage(content: string): string {
-  const line = firstLine(content);
+  const line = firstLine(withoutMentions(content));
   if (line.length === 0) return "New chat";
   if (line.length <= MAX_TITLE_LENGTH) return line;
   const cut = line.slice(0, MAX_TITLE_LENGTH);

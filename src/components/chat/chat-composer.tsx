@@ -9,7 +9,13 @@ import {
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputController,
 } from "@/components/ai-elements/prompt-input";
+import {
+  MentionPopover,
+  useMentionPicker,
+} from "@/components/contacts/mention-picker";
+import { fromTyped } from "@/lib/mentions";
 
 type ChatComposerProps = {
   /** Resolve once the message is admitted; a throw keeps the text in the box. */
@@ -32,13 +38,16 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string>();
+  // People picked with @ in the text being written.
+  const [picked] = useState(() => new Map<string, number>());
 
   async function send({ text }: { text: string }) {
     if (text.trim() === "") return;
     setSending(true);
     setError(undefined);
     try {
-      await onSend(text);
+      await onSend(fromTyped(text, picked));
+      picked.clear();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       throw cause;
@@ -52,7 +61,7 @@ export function ChatComposer({
       <PromptInputProvider>
         <PromptInput onSubmit={send}>
           <PromptInputBody>
-            <PromptInputTextarea placeholder="Ask Hei anything" />
+            <MentionTextarea picked={picked} />
           </PromptInputBody>
           <PromptInputFooter>
             <PromptInputTools>
@@ -72,5 +81,23 @@ export function ChatComposer({
       </PromptInputProvider>
       {error && <p className="px-1 text-xs text-destructive">{error}</p>}
     </div>
+  );
+}
+
+/** The message box, with @ to mention a contact. */
+function MentionTextarea({ picked }: { picked: Map<string, number> }) {
+  const { textInput } = usePromptInputController();
+  const picker = useMentionPicker<HTMLTextAreaElement>({
+    value: textInput.value,
+    onValueChange: textInput.setInput,
+    picked,
+  });
+  return (
+    <MentionPopover picker={picker} side="top">
+      <PromptInputTextarea
+        placeholder="Ask Hei anything"
+        {...picker.fieldProps}
+      />
+    </MentionPopover>
   );
 }

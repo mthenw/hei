@@ -19,6 +19,13 @@ Built ahead of the calendar; see [todos-spec.md](./todos-spec.md). Still open:
 - Recurring todos, reminders, lists or projects.
 - A "running agents" panel; for now each todo shows its agent's status.
 
+## Contacts and mentions — built
+
+See [contacts-spec.md](./contacts-spec.md). Still open:
+- iCloud contacts (CardDAV, app-specific password) and Microsoft 365, merged with Google's.
+- Gmail drafts through the API, and sending after an approval card, like calendar plans.
+- Mentions in the calendar's event details, and a contact's details on hover.
+
 ## Later
 
 - **Interactive browsing** — a cloud browser with saved logins driven over CDP with `playwright-core`. Kernel leads ($5/month free credit, idle time free, profiles, managed auth); Browser Use is cheapest per hour (turn off its default residential proxy); Browserbase has the most mature tooling. Anthropic's `browser_toolset_20260801` is Claude-only, so the tool surface must stay provider-agnostic ([ADR 0003](./adr/0003-own-web-tools.md)).

@@ -42,7 +42,7 @@ A plan shows in the chat as a **plan card**: the changes, and Approve / Not now.
 
 ## Setup
 
-Google sign-in needs an OAuth client from the user's Google Cloud project: Google Calendar API enabled, the consent screen published (in production, so sign-ins don't expire after 7 days; Google shows its "unverified app" notice to the owner), scopes `calendar.events` and `calendar.calendarlist.readonly`, and the redirect `http://localhost:3000/api/calendar/google/callback`. Its id and secret go in `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. Google accepts that redirect only on localhost or over HTTPS, so Google sign-in happens on the machine running Hei.
+Google sign-in needs an OAuth client from the user's Google Cloud project: Google Calendar API enabled (and the People API, for [contacts](./contacts-spec.md)), the consent screen published (in production, so sign-ins don't expire after 7 days; Google shows its "unverified app" notice to the owner), scopes `calendar.events` and `calendar.calendarlist.readonly` (plus the optional contacts scopes), and the redirect `http://localhost:3000/api/calendar/google/callback`. Its id and secret go in `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. Google accepts that redirect only on localhost or over HTTPS, so Google sign-in happens on the machine running Hei.
 
 ## Build order
 

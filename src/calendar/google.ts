@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { withoutMentions } from "@/lib/mentions";
 import {
   type CalendarSource,
   type SourceCalendar,
@@ -9,12 +10,25 @@ import {
   SyncTokenExpired,
 } from "./source";
 
-/** Read and change events; list calendars; know which account signed in. */
-export const GOOGLE_SCOPES = [
+/** Read and change events; list calendars; know which account signed in. Hei needs these. */
+const CALENDAR_SCOPES = [
   "openid",
   "email",
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+];
+
+/** Read the contacts, and the people Gmail keeps as other contacts. The user may leave these out. */
+export const CONTACTS_SCOPE =
+  "https://www.googleapis.com/auth/contacts.readonly";
+export const OTHER_CONTACTS_SCOPE =
+  "https://www.googleapis.com/auth/contacts.other.readonly";
+
+/** Everything Hei asks Google for in one sign-in. */
+export const GOOGLE_SCOPES = [
+  ...CALENDAR_SCOPES,
+  CONTACTS_SCOPE,
+  OTHER_CONTACTS_SCOPE,
 ];
 
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -27,7 +41,12 @@ export type GoogleClient = { clientId: string; clientSecret: string };
 /** What Hei keeps of a Google sign-in, sealed: the long-lived token, and whose it is. */
 export type GoogleGrant = { refreshToken: string; email: string };
 
-export type AccessToken = { accessToken: string; expiresAt: number };
+export type AccessToken = {
+  accessToken: string;
+  expiresAt: number;
+  /** What the sign-in allows, space-separated, when Google said. */
+  scopes: string | null;
+};
 
 /** Sign in with Google: the consent address, and turning its code (or a refresh token) into tokens. */
 export class GoogleOAuth {
@@ -43,8 +62,14 @@ export class GoogleOAuth {
 
   private readonly now: () => number;
 
-  /** A consent address, and the verifier to finish with. `prompt=consent` makes Google hand out a refresh token. */
-  begin(redirectUri: string): { url: string; state: string; verifier: string } {
+  /**
+   * A consent address, and the verifier to finish with. `prompt=consent` makes Google hand out a refresh token;
+   * `loginHint` picks the account when signing in again.
+   */
+  begin(
+    redirectUri: string,
+    loginHint?: string,
+  ): { url: string; state: string; verifier: string } {
     const state = randomBytes(16).toString("base64url");
     const verifier = randomBytes(32).toString("base64url");
     const url = new URL(AUTH_URL);
@@ -59,6 +84,7 @@ export class GoogleOAuth {
       state,
       code_challenge: createHash("sha256").update(verifier).digest("base64url"),
       code_challenge_method: "S256",
+      ...(loginHint ? { login_hint: loginHint } : {}),
     }).toString();
     return { url: url.toString(), state, verifier };
   }
@@ -79,7 +105,7 @@ export class GoogleOAuth {
       throw new SourceError(
         "Google gave no refresh token. Remove Hei's access at myaccount.google.com/permissions and connect again.",
       );
-    const missing = GOOGLE_SCOPES.filter(
+    const missing = CALENDAR_SCOPES.filter(
       (scope) =>
         scope.startsWith("https://") &&
         !String(body.scope ?? "").includes(scope),
@@ -110,6 +136,7 @@ export class GoogleOAuth {
     return {
       accessToken: body.access_token,
       expiresAt: this.now() + Number(body.expires_in ?? 3600) * 1000,
+      scopes: typeof body.scope === "string" ? body.scope : null,
     };
   }
 
@@ -388,11 +415,16 @@ function toGoogle(draft: Partial<EventDraft>): Record<string, unknown> {
       ? { date: value, dateTime: null }
       : { dateTime: value, date: null };
   return {
-    ...(draft.title !== undefined ? { summary: draft.title } : {}),
+    // Mentions are Hei's; Google shows the plain names.
+    ...(draft.title !== undefined
+      ? { summary: withoutMentions(draft.title) }
+      : {}),
     ...(draft.start !== undefined ? { start: time(draft.start) } : {}),
     ...(draft.end !== undefined ? { end: time(draft.end) } : {}),
     ...(draft.location !== undefined ? { location: draft.location ?? "" } : {}),
-    ...(draft.notes !== undefined ? { description: draft.notes ?? "" } : {}),
+    ...(draft.notes !== undefined
+      ? { description: withoutMentions(draft.notes ?? "") }
+      : {}),
     ...(draft.todoId
       ? { extendedProperties: { private: { heiTodoId: String(draft.todoId) } } }
       : {}),

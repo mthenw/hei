@@ -48,12 +48,15 @@ describe("GoogleOAuth", () => {
 
     const begun = oauth.begin(
       "http://localhost:3000/api/calendar/google/callback",
+      "me@example.com",
     );
     const params = new URL(begun.url).searchParams;
     expect(params.get("access_type")).toBe("offline");
     expect(params.get("code_challenge_method")).toBe("S256");
     expect(params.get("state")).toBe(begun.state);
     expect(params.get("scope")).toContain("calendar.events");
+    expect(params.get("scope")).toContain("contacts.other.readonly");
+    expect(params.get("login_hint")).toBe("me@example.com");
 
     const grant = await oauth.finish(
       "code-1",
@@ -66,10 +69,25 @@ describe("GoogleOAuth", () => {
       email: "me@example.com",
       accessToken: "access-1",
       expiresAt: NOW + 3_600_000,
+      scopes: GOOGLE_SCOPES.join(" "),
     });
     const sent = new URLSearchParams(String(calls[0].init?.body));
     expect(sent.get("code_verifier")).toBe(begun.verifier);
     expect(sent.get("client_secret")).toBe("client-secret");
+  });
+
+  it("takes a sign-in that left the contacts out", async () => {
+    const calendarOnly = GOOGLE_SCOPES.filter(
+      (scope) => !scope.includes("contacts"),
+    ).join(" ");
+    const { fetch } = fakeGoogle(() => ({
+      body: { ...GRANTED, scope: calendarOnly },
+    }));
+    const oauth = new GoogleOAuth(CLIENT, { fetch });
+
+    expect(await oauth.finish("code", "verifier", "http://x")).toMatchObject({
+      scopes: calendarOnly,
+    });
   });
 
   it("refuses a sign-in that didn't allow the calendar scopes", async () => {

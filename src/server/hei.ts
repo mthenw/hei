@@ -21,6 +21,8 @@ import { calendarExtension } from "@/calendar/tools";
 import { Chats } from "@/chats/chats";
 import { Connections } from "@/connections/connections";
 import { DatabaseCredentialStore } from "@/connections/credential-store";
+import { Contacts } from "@/contacts/contacts";
+import { contactsExtension } from "@/contacts/tools";
 import { openAppDatabase } from "@/db/database";
 import { installationId } from "@/db/settings";
 import { claimDataDir, dataDir } from "@/lib/data-dir";
@@ -41,6 +43,7 @@ export type Hei = {
   handOffs: HandOffs;
   calendars: Calendars;
   calendarPlans: CalendarPlans;
+  contacts: Contacts;
   maps: MapsConfig;
 };
 
@@ -87,6 +90,9 @@ async function openHei(): Promise<Hei> {
         : undefined,
   });
   calendars.start();
+  // Contacts come through the same Google sign-in as the calendars.
+  const contacts = new Contacts(db, { google: calendars });
+  contacts.start();
   const timeZone = () => profile.get().timeZone;
   const calendarPlans = new CalendarPlans(db, calendars, { timeZone });
   const catalog = new ModelCatalog({
@@ -112,6 +118,10 @@ async function openHei(): Promise<Hei> {
     catalog,
     extensions: [
       calendarExtension(calendars, calendarPlans, timeZone),
+      contactsExtension(contacts, {
+        gmailAccount: async () =>
+          (await calendars.googleAccounts())[0]?.email ?? null,
+      }),
       todosExtension(todos, {
         handOff: async (todoId) =>
           (await handOffsReady.promise).handOff(todoId),
@@ -135,6 +145,7 @@ async function openHei(): Promise<Hei> {
     handOffs,
     calendars,
     calendarPlans,
+    contacts,
     chats,
     connections: new Connections({
       models,
