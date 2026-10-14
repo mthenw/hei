@@ -16,9 +16,6 @@ A **todo** has a title, notes, an optional due date with an optional time, a pri
 - Ticking the checkbox marks a todo done; unticking reopens it.
 - The page is live: changes from a chat, an agent or another device appear at once.
 
-### Under the chat list
-The chat sidebar (the drawer on phones) ends with the open todos: Today, Upcoming and Someday, ticked or opened in the same editor. A one-line field adds a todo to Someday, and the header links to the Todos page. Chats and todos each take half of the sidebar's height and scroll on their own.
-
 ### Hei and todos
 Every chat, hand-off agents included, gets the todo tools:
 - `list_todos`, `add_todo`, `update_todo` (any field, done included), `delete_todo`, `hand_off_todo`.
